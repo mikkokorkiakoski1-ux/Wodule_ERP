@@ -32,17 +32,17 @@ export default async function TarjouksetPage() {
           <p className="text-sm text-ink-muted">Lisää ensin asiakas Asiakkuuksien hallinta -sivulla.</p>
         ) : (
           <form action={createOffer} className="grid grid-cols-2 gap-3">
-            <select name="customerId" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised">
+            <select name="customerId" required className="field">
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </select>
-            <input name="title" placeholder="Otsikko" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-            <input name="amountEuros" type="number" step="0.01" placeholder="Summa (€)" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-            <input name="validUntil" type="date" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-            <button className="justify-self-start bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold">
+            <input name="title" placeholder="Otsikko" required className="field" />
+            <input name="amountEuros" type="number" step="0.01" placeholder="Summa (€)" className="field" />
+            <input name="validUntil" type="date" className="field" />
+            <button className="justify-self-start btn btn-primary">
               Lisää tarjous
             </button>
           </form>

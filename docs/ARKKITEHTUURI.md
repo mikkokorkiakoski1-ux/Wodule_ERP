@@ -10,8 +10,12 @@ tämä taulukko ja `src/components/SectionNav.tsx`.
 - **Next.js 14 (App Router) + TypeScript** - yksi koodikanta UI:lle ja API:lle.
 - **PostgreSQL + Prisma** - tietomalli `prisma/schema.prisma`, ajetaan Dockerilla
   paikallisesti (`docker-compose.yml`).
-- **Tailwind CSS** - sama visuaalinen kieli (väriteemat, IBM Plex -fontit) kuin
-  aiemmin rakennetussa Tuotantoaikataulu-Artifact-työkalussa, ks. `globals.css`.
+- **Tailwind CSS** + Wodulen brändi-ilme (wodule.fi): tumma vihreä, oranssi
+  korostusväri, vaalea ruskea tausta, Chakra Petch- ja Reddit Sans -fontit sekä
+  viistetyt kulmat. Värit ovat CSS-muuttujina `globals.css`:ssä (vaalea ja
+  tumma teema), ja yhteiset luokat `.btn`, `.btn-primary`, `.btn-secondary`,
+  `.btn-ghost`, `.field`, `.card` ja `.badge` ovat samassa tiedostossa. Käytä
+  niitä uusilla sivuilla. Logo on komponentissa `WoduleLogo.tsx`.
 - **Server Actions** useimpiin CRUD-lomakkeisiin (yksinkertaisin tapa Next.js
   App Routerissa). **Tuotantoaikataulu projektit** -osio on poikkeus: se on
   client-komponentti, joka kutsuu omia REST-reittejään

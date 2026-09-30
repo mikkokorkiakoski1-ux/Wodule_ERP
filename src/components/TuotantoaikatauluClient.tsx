@@ -268,7 +268,7 @@ export function TuotantoaikatauluClient() {
         </div>
         <button
           onClick={openAdd}
-          className="bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold"
+          className="btn btn-primary"
         >
           + Lisää projekti
         </button>
@@ -320,7 +320,7 @@ export function TuotantoaikatauluClient() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Etsi projektia…"
-          className="ml-auto border border-line rounded-full px-3 py-1.5 text-sm bg-surface-raised"
+          className="ml-auto field py-1.5"
         />
       </div>
 
@@ -454,26 +454,26 @@ export function TuotantoaikatauluClient() {
                 placeholder="Tilaaja"
                 value={form.tilaaja}
                 onChange={(e) => setForm({ ...form, tilaaja: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface col-span-2"
+                className="field col-span-2"
               />
               <input
                 placeholder="Projekti"
                 value={form.projekti}
                 onChange={(e) => setForm({ ...form, projekti: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface col-span-2"
+                className="field col-span-2"
               />
               <input
                 type="number"
                 placeholder="Rakennuksia"
                 value={form.rakennuksia}
                 onChange={(e) => setForm({ ...form, rakennuksia: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                className="field"
               />
               <input
                 type="date"
                 value={form.luvattu}
                 onChange={(e) => setForm({ ...form, luvattu: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                className="field"
                 title="Luvattu toimitus"
               />
               <input
@@ -481,21 +481,21 @@ export function TuotantoaikatauluClient() {
                 placeholder="Tuntimenekki (h)"
                 value={form.tuntimenekki}
                 onChange={(e) => setForm({ ...form, tuntimenekki: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                className="field"
               />
               <input
                 type="number"
                 placeholder="Työntekijöitä"
                 value={form.tyontekijoita}
                 onChange={(e) => setForm({ ...form, tyontekijoita: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                className="field"
               />
               <input
                 type="number"
                 placeholder="Työpisteitä linjalla"
                 value={form.tyopisteita}
                 onChange={(e) => setForm({ ...form, tyopisteita: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                className="field"
               />
               <div className="flex flex-col gap-1">
                 <input
@@ -503,7 +503,7 @@ export function TuotantoaikatauluClient() {
                   placeholder="Kesto (työpäivää)"
                   value={form.kesto}
                   onChange={(e) => setForm({ ...form, kesto: e.target.value })}
-                  className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                  className="field"
                 />
                 <span className="text-[10.5px] text-ink-muted">
                   Laskennallinen kesto: {fmtKesto(liveLaskennallinenKesto)} (tueksi, ei vaikuta aikatauluun)
@@ -514,7 +514,7 @@ export function TuotantoaikatauluClient() {
                 placeholder="Valmiusaste (%)"
                 value={form.valmiusaste}
                 onChange={(e) => setForm({ ...form, valmiusaste: e.target.value })}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                className="field"
               />
               <input
                 type="number"
@@ -522,14 +522,14 @@ export function TuotantoaikatauluClient() {
                 value={form.siirto}
                 onChange={(e) => setForm({ ...form, siirto: e.target.value })}
                 disabled={isRootEdit}
-                className="border border-line rounded-md px-3 py-2 text-sm bg-surface disabled:opacity-40"
+                className="field disabled:opacity-40"
               />
               <div className="col-span-2 flex flex-col gap-1">
                 <input
                   type="date"
                   value={form.aloitus}
                   onChange={(e) => setForm({ ...form, aloitus: e.target.value })}
-                  className="border border-line rounded-md px-3 py-2 text-sm bg-surface"
+                  className="field"
                 />
                 <span className="text-[10.5px] text-ink-muted">
                   {isRootEdit
@@ -552,14 +552,14 @@ export function TuotantoaikatauluClient() {
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className="px-4 py-2 text-sm rounded-full border border-line"
+                    className="btn btn-ghost"
                   >
                     Peruuta
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 text-sm rounded-full bg-ink text-surface font-semibold disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     Tallenna
                   </button>

@@ -19,7 +19,7 @@ type Suodatin = "kaikki" | "virheet" | "muutokset";
 const TULOKSEN_NIMI = { luotu: "Uusi", paivitetty: "Päivitys", ohitettu: "Ohitettu", virhe: "Virhe" } as const;
 const TULOKSEN_TYYLI = { luotu: "ok", paivitetty: "info", ohitettu: "muted", virhe: "crit" } as const;
 
-const kentta = "border border-line rounded-md px-3 py-2 text-sm bg-surface-raised";
+const kentta = "field";
 
 function Yhteenveto({ y }: { y: TuontiRaportti["yhteenveto"] }) {
   return (
@@ -205,7 +205,7 @@ export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: Ko
           type="button"
           disabled={!tiedosto || kaynnissa !== null}
           onClick={() => laheta(true)}
-          className="bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-40"
+          className="btn btn-primary"
         >
           {kaynnissa === "esikatselu" ? "Tarkistetaan…" : "1. Esikatsele"}
         </button>
@@ -213,7 +213,7 @@ export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: Ko
           type="button"
           disabled={!voiTallentaa || kaynnissa !== null}
           onClick={() => laheta(false)}
-          className="border border-ink rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-40"
+          className="btn btn-secondary"
         >
           {kaynnissa === "tallennus" ? "Tallennetaan…" : "2. Tallenna tuonti"}
         </button>

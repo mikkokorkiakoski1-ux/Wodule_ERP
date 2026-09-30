@@ -40,15 +40,15 @@ export default async function ProjektitPage() {
           <p className="text-sm text-ink-muted">Lisää ensin asiakas.</p>
         ) : (
           <form action={createProject} className="grid grid-cols-2 gap-3">
-            <select name="customerId" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised">
+            <select name="customerId" required className="field">
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </select>
-            <input name="name" placeholder="Projektin nimi" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-            <select name="offerId" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised">
+            <input name="name" placeholder="Projektin nimi" required className="field" />
+            <select name="offerId" className="field">
               <option value="">(ei liitetä tarjoukseen)</option>
               {offers.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -56,13 +56,13 @@ export default async function ProjektitPage() {
                 </option>
               ))}
             </select>
-            <input name="promisedDeliveryDate" type="date" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
+            <input name="promisedDeliveryDate" type="date" className="field" />
             <textarea
               name="description"
               placeholder="Kuvaus"
-              className="col-span-2 border border-line rounded-md px-3 py-2 text-sm bg-surface-raised"
+              className="col-span-2 field"
             />
-            <button className="justify-self-start bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold">
+            <button className="justify-self-start btn btn-primary">
               Lisää projekti
             </button>
           </form>

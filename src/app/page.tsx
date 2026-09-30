@@ -71,11 +71,11 @@ export default async function HomePage() {
           <Link
             key={t.href}
             href={t.href}
-            className="card p-5 flex flex-col gap-2 hover:border-line-strong transition-colors"
+            className="card p-5 flex flex-col gap-2 group hover:border-accent transition-colors"
           >
-            <span className="text-lg font-semibold">{t.title}</span>
+            <span className="font-heading text-base font-bold uppercase tracking-wide group-hover:text-accent-text transition-colors">{t.title}</span>
             <span className="text-sm text-ink-2">{t.desc}</span>
-            <span className="text-2xl font-semibold mt-2 font-mono">
+            <span className="font-heading text-3xl font-bold mt-2">
               {counts[t.key]}
               <span className="text-xs text-ink-muted font-sans ml-2">{t.label}</span>
             </span>

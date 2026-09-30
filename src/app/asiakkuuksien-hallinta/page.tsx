@@ -43,12 +43,12 @@ export default async function AsiakkuuksienHallintaPage() {
       <div className="card p-5">
         <h2 className="font-semibold mb-3">Uusi asiakas</h2>
         <form action={createCustomer} className="grid grid-cols-2 gap-3">
-          <input name="name" placeholder="Nimi" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="businessId" placeholder="Y-tunnus" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="contactName" placeholder="Yhteyshenkilö" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="contactEmail" type="email" placeholder="Sähköposti" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="contactPhone" placeholder="Puhelin" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <button className="justify-self-start bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold">
+          <input name="name" placeholder="Nimi" required className="field" />
+          <input name="businessId" placeholder="Y-tunnus" className="field" />
+          <input name="contactName" placeholder="Yhteyshenkilö" className="field" />
+          <input name="contactEmail" type="email" placeholder="Sähköposti" className="field" />
+          <input name="contactPhone" placeholder="Puhelin" className="field" />
+          <button className="justify-self-start btn btn-primary">
             Lisää asiakas
           </button>
         </form>

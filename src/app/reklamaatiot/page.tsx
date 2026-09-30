@@ -31,21 +31,21 @@ export default async function ReklamaatiotPage() {
           <p className="text-sm text-ink-muted">Lisää ensin asiakas Asiakkuuksien hallinta -sivulla.</p>
         ) : (
           <form action={createComplaint} className="grid grid-cols-2 gap-3">
-            <select name="customerId" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised">
+            <select name="customerId" required className="field">
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </select>
-            <input name="title" placeholder="Otsikko" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
+            <input name="title" placeholder="Otsikko" required className="field" />
             <textarea
               name="description"
               placeholder="Kuvaus"
               required
-              className="col-span-2 border border-line rounded-md px-3 py-2 text-sm bg-surface-raised"
+              className="col-span-2 field"
             />
-            <button className="justify-self-start bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold">
+            <button className="justify-self-start btn btn-primary">
               Lisää reklamaatio
             </button>
           </form>
@@ -65,7 +65,7 @@ export default async function ReklamaatiotPage() {
               <select
                 name="status"
                 defaultValue={c.status}
-                className="border border-line rounded-md px-2 py-1 text-xs bg-surface-raised"
+                className="field !text-xs !px-2 !py-1"
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>

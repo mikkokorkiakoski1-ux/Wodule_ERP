@@ -30,12 +30,12 @@ export default async function HankintasuunnitelmaPage({
         <h2 className="font-semibold mb-3">Uusi hankintanimike</h2>
         <form action={addProcurementItem} className="grid grid-cols-2 gap-3">
           <input type="hidden" name="projectId" value={project.id} />
-          <input name="description" placeholder="Kuvaus" required className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised col-span-2" />
-          <input name="quantity" type="number" step="0.01" placeholder="Määrä" defaultValue={1} className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="unit" placeholder="Yksikkö" defaultValue="kpl" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="supplier" placeholder="Toimittaja" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <input name="neededBy" type="date" className="border border-line rounded-md px-3 py-2 text-sm bg-surface-raised" />
-          <button className="justify-self-start bg-ink text-surface rounded-full px-4 py-2 text-sm font-semibold">
+          <input name="description" placeholder="Kuvaus" required className="field col-span-2" />
+          <input name="quantity" type="number" step="0.01" placeholder="Määrä" defaultValue={1} className="field" />
+          <input name="unit" placeholder="Yksikkö" defaultValue="kpl" className="field" />
+          <input name="supplier" placeholder="Toimittaja" className="field" />
+          <input name="neededBy" type="date" className="field" />
+          <button className="justify-self-start btn btn-primary">
             Lisää
           </button>
         </form>

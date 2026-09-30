@@ -2,52 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Wodulen brändi-ilme (lähde: wodule.fi, teeman theme.min.css).
+ *
+ *   Tumma vihreä   #0e4126  teksti, sivupalkki, footer
+ *   Oranssi        #ef7a2f  painikkeet, korostukset, linkkien alleviivaus
+ *   Vaalea ruskea  #f0e7d5  sivun tausta
+ *   Luonnonvalkea  #fdfbf6  kortit ja pinnat
+ *   Vihreä         #077e3f  onnistuminen
+ *
+ * Fontit: Chakra Petch (otsikot, painikkeet), Reddit Sans (leipäteksti),
+ * Reddit Mono (koodit ja luvut). Kulmat ovat viistettyjä (corner-shape: bevel)
+ * kuten logossa. Selaimet, jotka eivät tue viistettä, näyttävät pyöristetyt
+ * kulmat.
+ */
+
 :root {
   color-scheme: light;
-  --surface: #fcfcfb;
+  --surface: #fdfbf6;
   --surface-raised: #ffffff;
-  --page: #f4f3ef;
-  --ink: #14130f;
-  --ink-2: #52514e;
-  --ink-muted: #898781;
-  --line: #e1e0d9;
-  --line-strong: #c3c2b7;
+  --page: #f0e7d5;
+  --ink: #0e4126;
+  --ink-2: #3d5a49;
+  --ink-muted: #66735f;
+  --line: #e3d7c1;
+  --line-strong: #c9b99c;
 
-  --status-good: #0ca30c;
-  --status-critical: #d03b3b;
+  --accent: #ef7a2f;
+  --accent-ink: #0e4126; /* teksti oranssilla pohjalla */
+  --accent-text: #a4480f; /* oranssi tekstinä vaalealla pohjalla (riittävä kontrasti) */
+  --brand-dark: #0e4126;
+  --brand-cream: #f0e7d5;
+  --brand-light: #fdfbf6;
 
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --status-good: #077e3f;
+  --status-critical: #c2372b;
+
+  --font-mono: "Reddit Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Reddit Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: "Chakra Petch", "Reddit Sans", system-ui, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface: #1a1a19;
-    --surface-raised: #201f1c;
-    --page: #0d0d0d;
-    --ink: #f6f5f2;
-    --ink-2: #c3c2b7;
-    --ink-muted: #8b897f;
-    --line: #2c2c2a;
-    --line-strong: #3a3936;
-    --status-good: #2fbf3f;
-    --status-critical: #e66767;
+    --surface: #0f3322;
+    --surface-raised: #133d29;
+    --page: #0a2417;
+    --ink: #fdfbf6;
+    --ink-2: #d9ccb2;
+    --ink-muted: #a2ad98;
+    --line: #1f4a34;
+    --line-strong: #2d5e44;
+    --accent-text: #f59a5c;
+    --brand-dark: #06190f;
+    --status-good: #45c47a;
+    --status-critical: #f0806f;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface: #1a1a19;
-  --surface-raised: #201f1c;
-  --page: #0d0d0d;
-  --ink: #f6f5f2;
-  --ink-2: #c3c2b7;
-  --ink-muted: #8b897f;
-  --line: #2c2c2a;
-  --line-strong: #3a3936;
-  --status-good: #2fbf3f;
-  --status-critical: #e66767;
+  --surface: #0f3322;
+  --surface-raised: #133d29;
+  --page: #0a2417;
+  --ink: #fdfbf6;
+  --ink-2: #d9ccb2;
+  --ink-muted: #a2ad98;
+  --line: #1f4a34;
+  --line-strong: #2d5e44;
+  --accent-text: #f59a5c;
+  --brand-dark: #06190f;
+  --status-good: #45c47a;
+  --status-critical: #f0806f;
 }
 
 * {
@@ -60,18 +87,154 @@ body {
   font-family: var(--font-sans);
 }
 
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+
+h1 {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+h2,
+h3 {
+  font-weight: 600;
+}
+
+a.underline {
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+a.underline:hover {
+  color: var(--accent-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
+  corner-shape: bevel;
 }
+
+/* ---------- Painikkeet ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 10px 20px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  corner-shape: bevel;
+  cursor: pointer;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-sm {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
+/* Oranssi pääpainike, vihreä teksti - kuten wodule.fi:n .button */
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-primary:not(:disabled):hover {
+  background: var(--brand-dark);
+  color: var(--brand-light);
+}
+
+/* Tumma vihreä toissijainen painike */
+.btn-secondary {
+  background: var(--brand-dark);
+  color: var(--brand-light);
+}
+.btn-secondary:not(:disabled):hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.btn-ghost:not(:disabled):hover {
+  border-color: var(--ink);
+}
+
+/* ---------- Lomakekentät ---------- */
+
+.field {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  corner-shape: bevel;
+  padding: 8px 12px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.field::placeholder {
+  color: var(--ink-muted);
+}
+.field::file-selector-button {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--brand-light);
+  background: var(--brand-dark);
+  border: 0;
+  border-radius: 3px;
+  corner-shape: bevel;
+  padding: 6px 12px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* ---------- Merkit ---------- */
 
 .badge {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  font-weight: 650;
+  font-weight: 600;
   padding: 2px 7px;
-  border-radius: 6px;
+  border-radius: 4px;
+  corner-shape: bevel;
   white-space: nowrap;
   display: inline-block;
 }
@@ -88,6 +251,6 @@ body {
   color: var(--ink-muted);
 }
 .badge.info {
-  background: color-mix(in srgb, #2a78d6 16%, transparent);
-  color: #2a78d6;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-text);
 }
