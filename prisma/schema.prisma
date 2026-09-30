@@ -1,0 +1,370 @@
+// Toiminnanohjausjärjestelmän tietomalli.
+//
+// Rakenne noudattaa liitteenä olleen kaavion (docs/rakennekaavio.jpg) viittä
+// pääosiota. Katso docs/ARKKITEHTUURI.md kaavion ja mallien välisestä
+// vastaavuustaulukosta.
+//
+//   1. Asiakkuuksien hallinta  -> Customer, Offer, Project, OrderConfirmation,
+//                                 ProcurementPlan, ProjectMilestone,
+//                                 ProductionScheduleItem ("Tuotantoaikataulu projektit")
+//   2. Tuotehallinta           -> Product, PriceList, PriceListItem
+//   3. Reklamaatiot            -> Complaint
+//   4. Laadunvarmistus         -> QaChecklist, QaChecklistItem, QaDocument
+//   5. Tuotannon ohjaus        -> ProductionFolder, WorkOrder, Drawing
+//
+// HUOM: kaaviossa "Tuotantoaikataulu projektit" roikkuu Asiakkuuksien
+// hallinta > Projektit -alla, EI Tuotannon ohjaus -osiossa. ProductionScheduleItem
+// toteuttaa aiemmin Artifact-työkaluna rakennetun Tuotantoaikataulun
+// laskentalogiikan (ks. src/lib/production-schedule.ts) - kentät
+// seq/aloitus/siirto/tuntimenekki/tyontekijoita/tyopisteita/kesto vastaavat
+// suoraan sitä työkalua, jotta data ja kaavat siirtyvät yksi yhteen. Tuotannon
+// ohjaus -osio on tästä erillinen: se on Sharepoint-tuotantokansio (per
+// projekti) työmääräimineen ja piirustuksineen.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 0. Käyttäjät (stub tulevaa kirjautumista varten - ei vielä
+//    kytketty mihinkään. Claude Code: lisää NextAuth tms. tähän).
+// ============================================================
+
+enum UserRole {
+  ADMIN
+  MYYNTI
+  TUOTANTO
+  LAATU
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(TUOTANTO)
+  createdAt DateTime @default(now())
+}
+
+// ============================================================
+// 1. Asiakkuuksien hallinta
+// ============================================================
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  businessId String? // Y-tunnus
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  offers               Offer[]
+  projects             Project[]
+  productionScheduleItems ProductionScheduleItem[]
+  complaints           Complaint[]
+
+  @@map("customers")
+}
+
+enum OfferStatus {
+  LUONNOS
+  LAHETETTY
+  HYVAKSYTTY
+  HYLATTY
+}
+
+// Tarjoukset
+model Offer {
+  id         String      @id @default(cuid())
+  customerId String
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  title      String
+  status     OfferStatus @default(LUONNOS)
+  amountCents Int?
+  validUntil DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  project Project?
+
+  @@map("offers")
+}
+
+enum ProjectStatus {
+  SUUNNITTELU
+  KAYNNISSA
+  VALMIS
+  KESKEYTETTY
+}
+
+// Projektit (kaavion "Projekti 1", "Projekti 2", ... ovat tämän mallin rivejä)
+model Project {
+  id         String        @id @default(cuid())
+  customerId String
+  customer   Customer      @relation(fields: [customerId], references: [id])
+  offerId    String?       @unique
+  offer      Offer?        @relation(fields: [offerId], references: [id])
+  name       String
+  status     ProjectStatus @default(SUUNNITTELU)
+  // Yhteenvetosivu: yhteenveto koostetaan näistä kentistä + relaatioista,
+  // ei erillistä taulua.
+  description String?
+  promisedDeliveryDate DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  orderConfirmation OrderConfirmation?
+  procurementPlan   ProcurementPlan?
+  milestones        ProjectMilestone[]
+  productionScheduleItems ProductionScheduleItem[]
+  productionFolder  ProductionFolder?
+
+  @@map("projects")
+}
+
+// Tilausvahvistus
+model OrderConfirmation {
+  id          String   @id @default(cuid())
+  projectId   String   @unique
+  project     Project  @relation(fields: [projectId], references: [id])
+  number      String   @unique
+  confirmedAt DateTime @default(now())
+  fileUrl     String?
+  notes       String?
+
+  @@map("order_confirmations")
+}
+
+// Hankintasuunnitelma
+model ProcurementPlan {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id])
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items ProcurementItem[]
+
+  @@map("procurement_plans")
+}
+
+model ProcurementItem {
+  id                String          @id @default(cuid())
+  procurementPlanId String
+  procurementPlan   ProcurementPlan @relation(fields: [procurementPlanId], references: [id], onDelete: Cascade)
+  description       String
+  quantity          Float           @default(1)
+  unit              String          @default("kpl")
+  supplier          String?
+  neededBy          DateTime?
+  ordered           Boolean         @default(false)
+
+  @@map("procurement_items")
+}
+
+// Projektiaikataulu: projektin ylätason virstanpylväät (asiakkaalle näkyvä
+// aikataulu). Eri asia kuin ProductionScheduleItem, joka on tuotannon
+// yksityiskohtainen viikkotason aikataulu (kaavion "Tuotannon ohjaus" -osio).
+model ProjectMilestone {
+  id        String    @id @default(cuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  dueDate   DateTime?
+  done      Boolean   @default(false)
+  seq       Int       @default(0)
+
+  @@map("project_milestones")
+}
+
+// ============================================================
+// 2. Tuotehallinta
+// ============================================================
+
+// Nimikkeistö
+model Product {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  unit        String   @default("kpl")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  priceListItems PriceListItem[]
+
+  @@map("products")
+}
+
+// Hinnastot
+model PriceList {
+  id        String   @id @default(cuid())
+  name      String
+  validFrom DateTime @default(now())
+  validTo   DateTime?
+  createdAt DateTime @default(now())
+
+  items PriceListItem[]
+
+  @@map("price_lists")
+}
+
+model PriceListItem {
+  id          String    @id @default(cuid())
+  priceListId String
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  unitPriceCents Int
+  currency    String    @default("EUR")
+
+  @@unique([priceListId, productId])
+  @@map("price_list_items")
+}
+
+// ============================================================
+// 3. Reklamaatiot
+// ============================================================
+
+enum ComplaintStatus {
+  AVOIN
+  SELVITYKSESSA
+  RATKAISTU
+  HYLATTY
+}
+
+model Complaint {
+  id          String          @id @default(cuid())
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  title       String
+  description String
+  status      ComplaintStatus @default(AVOIN)
+  createdAt   DateTime        @default(now())
+  resolvedAt  DateTime?
+
+  @@map("complaints")
+}
+
+// ============================================================
+// 4. Laadunvarmistus
+// ============================================================
+
+// Tarkastuslistat
+model QaChecklist {
+  id        String   @id @default(cuid())
+  title     String
+  createdAt DateTime @default(now())
+
+  items QaChecklistItem[]
+
+  @@map("qa_checklists")
+}
+
+model QaChecklistItem {
+  id          String      @id @default(cuid())
+  checklistId String
+  checklist   QaChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  label       String
+  seq         Int         @default(0)
+  passed      Boolean?
+  note        String?
+
+  @@map("qa_checklist_items")
+}
+
+// Dopit (dokumentit)
+model QaDocument {
+  id        String   @id @default(cuid())
+  title     String
+  fileUrl   String?
+  category  String?
+  createdAt DateTime @default(now())
+
+  @@map("qa_documents")
+}
+
+// ------------------------------------------------------------
+// 1b. Tuotantoaikataulu projektit (Asiakkuuksien hallinta > Projektit alla)
+// ------------------------------------------------------------
+
+// Tuotantoaikataulun rivit - sama tietomalli ja laskentalogiikka kuin
+// aiemmin rakennetussa Artifact-työkalussa (src/lib/production-schedule.ts).
+// Tämä EI ole Tuotannon ohjaus -osiota, vaan kaavion "Tuotantoaikataulu
+// projektit" -solmu Projektit-haaran alla.
+model ProductionScheduleItem {
+  id             String   @id @default(cuid())
+  seq            Int
+  customerId     String?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id])
+  tilaaja        String   // vapaateksti-nimi, jos ei linkitetä Customer-tauluun
+  projekti       String
+  rakennuksia    Int      @default(1)
+  luvattu        DateTime?
+  aloitus        DateTime? // kiinteä aloitus (vain ketjun ensimmäisellä rivillä pakollinen)
+  siirto         Int      @default(0) // kalenteripäivää edellisen rivin ennusteesta
+  tuntimenekki   Float
+  tyontekijoita  Int
+  tyopisteita    Int      @default(1)
+  kesto          Int      // työpäivää - AINOA aikataulua ohjaava kestoarvo
+  valmiusaste    Int?     // 0-100, null = ei kirjattu
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([seq])
+  @@map("production_schedule_items")
+}
+
+// ============================================================
+// 5. Tuotannon ohjaus
+// ============================================================
+
+// Sharepoint tuotantokansio: yksi per projekti, ulkoinen synkronointipiste.
+model ProductionFolder {
+  id            String   @id @default(cuid())
+  projectId     String   @unique
+  project       Project  @relation(fields: [projectId], references: [id])
+  sharepointUrl String?
+  syncedAt      DateTime?
+
+  workOrders WorkOrder[]
+  drawings   Drawing[]
+
+  @@map("production_folders")
+}
+
+// Työmääräimet
+model WorkOrder {
+  id                 String           @id @default(cuid())
+  productionFolderId String
+  productionFolder   ProductionFolder @relation(fields: [productionFolderId], references: [id], onDelete: Cascade)
+  number             String
+  description        String?
+  hoursEstimated     Float?
+  hoursActual        Float?
+  createdAt          DateTime         @default(now())
+
+  @@map("work_orders")
+}
+
+// Piirustukset
+model Drawing {
+  id                 String           @id @default(cuid())
+  productionFolderId String
+  productionFolder   ProductionFolder @relation(fields: [productionFolderId], references: [id], onDelete: Cascade)
+  title              String
+  revision           String           @default("A")
+  fileUrl            String?
+  uploadedAt         DateTime         @default(now())
+
+  @@map("drawings")
+}
