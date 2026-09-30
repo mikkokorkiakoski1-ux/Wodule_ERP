@@ -368,3 +368,34 @@ model Drawing {
 
   @@map("drawings")
 }
+
+// ============================================================
+// 6. Tiedonsiirto (tuonti ja vienti)
+//
+// Poikkileikkaava työkalu, joka ei ole kaavion solmu: sillä tuodaan ja
+// viedään kaikkien osioiden tietoja (CSV, Excel, JSON). Ks.
+// src/lib/tiedonsiirto/ ja /tiedonsiirto.
+// ============================================================
+
+enum DataTransferDirection {
+  TUONTI
+  VIENTI
+}
+
+// Tuonti- ja vientiloki: yksi rivi per tallennettu tuonti tai vienti.
+// Esikatseluja ei kirjata.
+model DataTransferLog {
+  id        String                @id @default(cuid())
+  direction DataTransferDirection
+  target    String // kohteen avain, esim. "asiakkaat" tai "kaikki"
+  format    String // csv | xlsx | json
+  fileName  String?
+  created   Int                   @default(0)
+  updated   Int                   @default(0)
+  skipped   Int                   @default(0)
+  failed    Int                   @default(0)
+  createdAt DateTime              @default(now())
+
+  @@index([createdAt])
+  @@map("data_transfer_logs")
+}

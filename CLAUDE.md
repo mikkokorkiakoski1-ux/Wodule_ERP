@@ -35,7 +35,7 @@ Testikehys on Vitest. Testit ovat testattavan tiedoston vieressä (`*.test.ts`).
 
 Viisi pääosiota ovat kukin oma kansionsa `src/app/`-hakemistossa: `asiakkuuksien-hallinta`, `tuotehallinta`, `reklamaatiot`, `laadunvarmistus`, `tuotannon-ohjaus`. `prisma/schema.prisma` on ryhmitelty samoihin viiteen osioon.
 
-Tietoa käsitellään kahdella tavalla:
+Tietoa käsitellään kolmella tavalla:
 - **Server Actions (oletus).** Sivut ovat palvelinkomponentteja, jotka kyselevät `prisma`-singletonia (`src/lib/prisma.ts`) suoraan. Lomakkeet lähettävät tiedot `"use server"`-funktioille tiedostoissa `src/lib/actions/<osio>.ts`. Jokainen toiminto validoi `FormData`:n inline-zod-skeemalla, kirjoittaa Prisman kautta ja kutsuu lopuksi `revalidatePath`-funktiota muuttuneelle reitille.
 - **REST + client-komponentti (poikkeus).** "Tuotantoaikataulu projektit" (`/asiakkuuksien-hallinta/projektit/tuotantoaikataulu`) renderöi komponentin `src/components/TuotantoaikatauluClient.tsx`. Se kutsuu reittejä `src/app/api/tuotantoaikataulu/**`:
   - kokoelma: `GET` ja `POST`
@@ -43,6 +43,12 @@ Tietoa käsitellään kahdella tavalla:
   - `jarjestys`: järjestyksen vaihto, joka vaihtaa kahden rivin `seq`-arvot transaktiossa
 
   Näiden reittien pyyntöskeemat ovat tiedostossa `src/lib/validation.ts`.
+- **Tiedonsiirto (REST, kaavion ulkopuolinen työkalu).** `/tiedonsiirto` tuo ja vie kaikkien osioiden tietoja CSV-, Excel- (`exceljs`) ja JSON-muodossa reittien `src/app/api/tiedonsiirto/{vienti,pohja,tuonti}` kautta. Logiikka on kansiossa `src/lib/tiedonsiirto/`:
+  - `kohteet.ts`: kohteet riippuvuusjärjestyksessä. **Kun lisäät malliin kentän tai uuden mallin, päivitä myös sen kohde**, muuten kenttä ei kulje tuonnissa eikä viennissä.
+  - `tuonti.ts`: tuontimoottori. Yksi transaktio, rivikohtainen savepoint, ja esikatselu perii transaktion lopuksi.
+  - `arvot.ts`: arvojen tulkinta ja muotoilu. Tyhjä solu tarkoittaa, ettei kenttään kosketa.
+
+  Tuonti ei koskaan poista rivejä.
 
 Rahasummat tallennetaan kokonaislukuina sentteinä (esim. `amountCents`). Lomakkeisiin syötetään euroja, jotka muunnetaan senteiksi.
 

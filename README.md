@@ -38,6 +38,29 @@ Lyhyesti:
 - `src/lib/production-schedule.ts` - Tuotantoaikataulun kesto/ennuste-kaavat,
   suoraan portattuna aiemmin rakennetusta Artifact-työkalusta.
 - `src/lib/actions/*.ts` - Server Actions -pohjaiset CRUD-toiminnot per osio.
+- `src/lib/tiedonsiirto/` - tietojen tuonti ja vienti (`/tiedonsiirto`).
+
+## Tiedonsiirto
+
+Sivulla `/tiedonsiirto` voi tuoda ja viedä kaikkien osioiden tietoja:
+
+- **Vienti:** Excel, CSV tai JSON yksittäisestä kohteesta. Koko järjestelmän
+  saa viedyksi Excel-työkirjana (välilehti per kohde + ohjeet) tai
+  JSON-varmuuskopiona.
+- **Tuonti:** Excel, CSV (; , tai sarkain, UTF-8 tai Windows-1252) tai JSON.
+  Tuonti tehdään kahdessa vaiheessa. Esikatselu näyttää rivikohtaisesti,
+  mitä luotaisiin, päivitettäisiin tai ohitettaisiin ja mitkä rivit ovat
+  virheellisiä, eikä se muuta mitään. Tallennus käyttää samoja asetuksia.
+  Olemassa olevat rivit tunnistetaan luonnollisella avaimella (esim.
+  nimikekoodi, Y-tunnus tai asiakkaan nimi), joten viety tiedosto kelpaa
+  sellaisenaan takaisin tuotavaksi.
+- **Pohjat:** tyhjä tuontipohja kohteittain, esimerkkirivin kanssa.
+- **Loki:** tallennetut tuonnit ja viennit kirjataan tauluun `DataTransferLog`.
+
+Kohteet: asiakkaat, tarjoukset, projektit, tilausvahvistukset,
+virstanpylväät, hankintasuunnitelmat, tuotantoaikataulu, nimikkeet,
+hinnastot, hinnastorivit, reklamaatiot, tarkastuslistat, tarkastuskohdat,
+dopit, tuotantokansiot, työmääräimet ja piirustukset.
 
 ## Jatkokehitys (Claude Code)
 

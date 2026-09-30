@@ -48,6 +48,21 @@ tämä taulukko ja `src/components/SectionNav.tsx`.
 | &nbsp;&nbsp;&nbsp;├─ Työmääräimet | `/tuotannon-ohjaus/[id]/tyomaaraimet` | `WorkOrder` |
 | &nbsp;&nbsp;&nbsp;└─ Piirustukset | `/tuotannon-ohjaus/[id]/piirustukset` | `Drawing` |
 
+**Kaavion ulkopuoliset työkalut** (navigaatiossa omana Järjestelmä-ryhmänään):
+
+| Työkalu | Reitti | Prisma-malli(t) |
+|---|---|---|
+| Tiedonsiirto (tuonti ja vienti) | `/tiedonsiirto`, `/api/tiedonsiirto/{vienti,pohja,tuonti}` | kaikki yllä olevat + `DataTransferLog` |
+
+Tiedonsiirto tuo ja vie kaikkien viiden osion tietoja (CSV, Excel, JSON).
+Jokainen tuotava tietotyyppi on "kohde" tiedostossa
+`src/lib/tiedonsiirto/kohteet.ts`: sarakkeet, vienti ja yhden rivin tuonti.
+Uuden mallin saa tuonnin ja viennin piiriin lisäämällä sille kohteen.
+Viittaukset kulkevat luettavilla avaimilla (asiakkaan nimi tai Y-tunnus,
+nimikekoodi, projektin nimi), eivät tietokantatunnisteilla. Tuonti ajetaan
+yhdessä transaktiossa, ja jokainen rivi on oma savepointinsa. Esikatselu
+ajaa saman tuonnin ja perii sen lopuksi.
+
 **Huomio kaavion kahdesta aikataulusta**, koska ne on helppo sekoittaa:
 
 - **Tuotantoaikataulu projektit** (Asiakkuuksien hallinta > Projektit alla) on
@@ -69,9 +84,11 @@ src/
     production-schedule.ts  # Tuotantoaikataulun laskentalogiikka (portattu Artifactista)
     validation.ts           # Zod-skeemat API-reiteille
     actions/                # Server Actions per osio (asiakkuudet, tuotehallinta, ...)
+    tiedonsiirto/           # Tuonti ja vienti: kohteet, tiedostomuodot, tuontimoottori
   components/
     SectionNav.tsx           # Sivunavigaatio - peilaa kaaviota
     TuotantoaikatauluClient.tsx  # Tuotantoaikataulun interaktiivinen taulukko/Gantt
+    TiedonsiirtoTuontiClient.tsx # Tuonnin esikatselu ja tallennus
 prisma/
   schema.prisma
   seed.ts                   # Siemendata, mm. sama 11 riviä kuin Artifact-työkalussa

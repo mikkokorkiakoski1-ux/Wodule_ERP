@@ -12,6 +12,15 @@ export default async function NimikkeistoPage() {
       <div>
         <p className="text-xs text-ink-muted font-mono uppercase">Tuotehallinta &raquo; Nimikkeistö</p>
         <h1 className="text-2xl font-semibold">Nimikkeistö</h1>
+        <p className="text-sm mt-1">
+          <Link href="/tiedonsiirto?kohde=nimikkeet#tuonti" className="underline">
+            Tuo nimikkeitä tiedostosta
+          </Link>{" "}
+          ·{" "}
+          <a href="/api/tiedonsiirto/vienti?kohde=nimikkeet&muoto=xlsx" className="underline">
+            Vie Exceliin
+          </a>
+        </p>
       </div>
 
       <div className="card p-5">

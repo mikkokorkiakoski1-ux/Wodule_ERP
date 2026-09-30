@@ -44,6 +44,9 @@ const SECTIONS = [
   },
 ] as const;
 
+// Poikkileikkaavat työkalut, jotka eivät ole kaavion solmuja.
+const JARJESTELMA = [{ title: "Tiedonsiirto", href: "/tiedonsiirto" }] as const;
+
 export function SectionNav() {
   return (
     <nav className="flex flex-col gap-5 p-4 w-64 shrink-0 border-r border-line bg-surface min-h-screen">
@@ -73,6 +76,18 @@ export function SectionNav() {
           )}
         </div>
       ))}
+      <div className="flex flex-col gap-1 border-t border-line pt-4">
+        <span className="px-2 text-xs font-mono uppercase text-ink-muted">Järjestelmä</span>
+        {JARJESTELMA.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="px-2 py-1 rounded-md text-[13px] text-ink-2 hover:bg-page hover:text-ink"
+          >
+            {item.title}
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 }

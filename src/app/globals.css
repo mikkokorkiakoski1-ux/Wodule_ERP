@@ -87,3 +87,7 @@ body {
   background: color-mix(in srgb, var(--ink-muted) 14%, transparent);
   color: var(--ink-muted);
 }
+.badge.info {
+  background: color-mix(in srgb, #2a78d6 16%, transparent);
+  color: #2a78d6;
+}

@@ -29,6 +29,15 @@ export default async function AsiakkuuksienHallintaPage() {
           </Link>
           .
         </p>
+        <p className="text-sm mt-1">
+          <Link href="/tiedonsiirto?kohde=asiakkaat#tuonti" className="underline">
+            Tuo asiakkaita tiedostosta
+          </Link>{" "}
+          ·{" "}
+          <a href="/api/tiedonsiirto/vienti?kohde=asiakkaat&muoto=xlsx" className="underline">
+            Vie Exceliin
+          </a>
+        </p>
       </div>
 
       <div className="card p-5">

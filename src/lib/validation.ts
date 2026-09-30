@@ -24,3 +24,22 @@ export const reorderInput = z.object({
   idA: z.string().cuid(),
   idB: z.string().cuid(),
 });
+
+// Tiedonsiirto (src/app/api/tiedonsiirto/**). Kohteen avain tarkistetaan
+// reitissä KOHTEET-listaa vasten.
+export const vientiInput = z.object({
+  kohde: z.string().min(1),
+  muoto: z.enum(["csv", "xlsx", "json"]),
+});
+
+export const pohjaInput = z.object({
+  kohde: z.string().min(1),
+  muoto: z.enum(["csv", "xlsx"]),
+});
+
+export const tuontiInput = z.object({
+  kohde: z.string().min(1),
+  tapa: z.enum(["lisaa-ja-paivita", "vain-uudet", "vain-paivita"]).default("lisaa-ja-paivita"),
+  virheet: z.enum(["peru", "ohita"]).default("peru"),
+  esikatselu: z.enum(["true", "false"]).transform((v) => v === "true"),
+});
