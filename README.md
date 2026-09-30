@@ -62,9 +62,9 @@ yksityiskohta on jätetty seuraavaa kierrosta varten. Ehdotettu järjestys:
    mukautettua hover-tooltipiä - pelkkä `title`-attribuutti). Jos rikkaampi
    aikajana halutaan takaisin, se voi ottaa suoraan mallia alkuperäisestä
    Artifact-sivusta.
-5. **Testit.** Ei vielä yksikkötestejä. `src/lib/production-schedule.ts` on
-   puhdasta, tilatonta logiikkaa ja erittäin helppo testata (esim. Vitest) -
-   aloita siitä, koska se ohjaa koko aikataulun oikeellisuutta.
+5. **Testit.** Vitest on käytössä (`npm test`), ja
+   `src/lib/production-schedule.ts` on testattu. Seuraavaksi kannattaa testata
+   Server Actionsien ja rajapintareittien validointi.
 6. **Validointi API-rajapinnoissa.** `src/lib/validation.ts` kattaa
    Tuotantoaikataulu-rajapinnan; muut Server Actions käyttävät kevyempää
    inline-zod-validointia - yhtenäistä tyyliä jos halutaan.

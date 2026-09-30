@@ -22,9 +22,12 @@ npm run typecheck           # tsc --noEmit
 npm run db:generate         # generoi Prisma-client skeemamuutosten jälkeen
 npm run db:push             # synkronoi skeema ilman migraatiota
 npm run db:studio
+
+npm test                    # vitest run (kaikki testit)
+npx vitest run src/lib/production-schedule.test.ts   # yksi tiedosto
 ```
 
-Testikehystä ei vielä ole. README ehdottaa Vitestiä, ja ensimmäiseksi testattavaksi `src/lib/production-schedule.ts`:ää.
+Testikehys on Vitest. Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Toistaiseksi testattu on vain `src/lib/production-schedule.ts`. Sen testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
 
 ## Arkkitehtuuri
 
