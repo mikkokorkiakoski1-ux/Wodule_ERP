@@ -9,7 +9,7 @@ Sisäinen toiminnanohjausjärjestelmä (ERP). Tekniikka: Next.js 14 (App Router)
 ## Komennot
 
 ```bash
-npm install
+npm install                 # npm 11 ohittaa asennusskriptit: aja sen jälkeen npm run db:generate
 cp .env.example .env        # DATABASE_URL vastaa docker-composen oletuksia
 docker compose up -d        # Postgres 16, localhost:5432 (erp/erp/erp)
 npm run db:migrate          # prisma migrate dev
@@ -27,7 +27,16 @@ npm test                    # vitest run (kaikki testit)
 npx vitest run src/lib/production-schedule.test.ts   # yksi tiedosto
 ```
 
-Testikehys on Vitest. Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Toistaiseksi testattu on vain `src/lib/production-schedule.ts`. Sen testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
+- **Migraatiot ilman interaktiivista komentoa.** `prisma migrate dev` ei toimi ei-interaktiivisessa ympäristössä (esim. Claude Code). Kun tietokanta on ajan tasalla edellisestä migraatiosta, luo uusi näin:
+  ```bash
+  mkdir prisma/migrations/<AAAAKKPPTTMMSS>_<nimi>
+  npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/<...>/migration.sql
+  npx prisma migrate deploy && npx prisma generate
+  ```
+- **Älä aja `npm run build`:ia kehityspalvelimen ollessa käynnissä.** Molemmat käyttävät `.next`-kansiota, ja kehityspalvelin alkaa palauttaa 500-virheitä. Pysäytä palvelin, aja build, poista `.next` ja käynnistä palvelin uudelleen.
+- Tailwindin konfiguraatiomuutokset vaativat kehityspalvelimen uudelleenkäynnistyksen.
+
+Testikehys on Vitest (`vitest.config.ts` määrittää `@/`-aliaksen). Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Testattuja ovat `src/lib/production-schedule.ts` ja tiedonsiirron puhdas logiikka (`src/lib/tiedonsiirto/tiedonsiirto.test.ts`: CSV, arvojen tulkinta, otsikoiden tunnistus). Tietokantaa käyttävää tuontia ei ole yksikkötestattu. Tuotantoaikataulun testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
 
 ## Arkkitehtuuri
 
@@ -49,6 +58,14 @@ Tietoa käsitellään kolmella tavalla:
   - `arvot.ts`: arvojen tulkinta ja muotoilu. Tyhjä solu tarkoittaa, ettei kenttään kosketa.
 
   Tuonti ei koskaan poista rivejä.
+
+### Ulkoasu: Wodulen brändi-ilme
+
+Ulkoasu noudattaa wodule.fi:n ilmettä. Värit ovat CSS-muuttujina tiedostossa `src/app/globals.css` (vaalea ja tumma teema) ja Tailwind-väreinä (`ink`, `accent`, `brand-dark` jne.). Älä kovakoodaa värejä sivuille.
+- Painikkeet: `btn btn-primary` (oranssi, päätoiminto), `btn btn-secondary` (tumman vihreä), `btn btn-ghost` ja pieni koko `btn-sm`. Kentät: `field`. Kortit: `card`. Tilamerkit: `badge ok|crit|muted|info`.
+- Fontit: `font-heading` (Chakra Petch) otsikoihin, oletuksena Reddit Sans ja `font-mono` (Reddit Mono). h1 on automaattisesti isoin kirjaimin.
+- Logo on komponentissa `src/components/WoduleLogo.tsx` (väri `currentColor`). Sivupalkki (`SectionNav.tsx`) on client-komponentti, joka korostaa aktiivisen reitin.
+- Tailwind 3 ei tue läpinäkyvyysmodifikaattoreita (`/70`) CSS-muuttujaväreille. Käytä kiinteää arvoa, esim. `text-[#f0e7d5]/70`.
 
 Rahasummat tallennetaan kokonaislukuina sentteinä (esim. `amountCents`). Lomakkeisiin syötetään euroja, jotka muunnetaan senteiksi.
 

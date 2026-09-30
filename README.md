@@ -11,10 +11,12 @@ siitä, mikä on tarkoituksella jätetty auki.
 
 ## Pikakäynnistys
 
-Vaatii Node.js 20+, Docker (paikalliseen Postgresiin) ja pnpm/npm.
+Vaatii Node.js 20+, PostgreSQL 16:n (Dockerilla tai paikallisena palveluna,
+tunnukset erp/erp, tietokanta erp) ja npm.
 
 ```bash
 npm install
+npm run db:generate           # npm 11 ohittaa Prisman asennusskriptin
 cp .env.example .env          # oletusarvot toimivat suoraan docker-composen kanssa
 docker compose up -d          # nostaa Postgresin porttiin 5432
 npm run db:migrate            # luo taulut (kysyy migraation nimen ensimmäisellä kerralla)
@@ -64,9 +66,15 @@ dopit, tuotantokansiot, työmääräimet ja piirustukset.
 
 ## Jatkokehitys (Claude Code)
 
-Tämä on tarkoituksella laaja mutta matala ensimmäinen versio: kaikki viisi
-osiota ovat oikeasti käytettävissä (lisäys/listaus tietokannasta), mutta moni
-yksityiskohta on jätetty seuraavaa kierrosta varten. Ehdotettu järjestys:
+**Tilanne 30.9.2026.** Tehty ensimmäisen version jälkeen:
+
+- Alkumigraatio ja ESLint-asetukset.
+- Vitest ja testit tuotantoaikataulun laskennalle ja tiedonsiirrolle (50 testiä).
+- Tiedonsiirto: kaikkien osioiden tuonti ja vienti (`/tiedonsiirto`).
+- Ulkoasu Wodulen brändi-ilmeen mukaiseksi (wodule.fi).
+
+Kaikki viisi osiota ovat käytettävissä (lisäys ja listaus tietokannasta), mutta
+moni yksityiskohta on vielä auki. Ehdotettu järjestys:
 
 1. **Kirjautuminen ja käyttöoikeudet.** `User`-malli ja `UserRole`-enum ovat
    skeemassa valmiina, mutta eivät kytkettynä mihinkään. Lisää esim.
@@ -85,10 +93,13 @@ yksityiskohta on jätetty seuraavaa kierrosta varten. Ehdotettu järjestys:
    mukautettua hover-tooltipiä - pelkkä `title`-attribuutti). Jos rikkaampi
    aikajana halutaan takaisin, se voi ottaa suoraan mallia alkuperäisestä
    Artifact-sivusta.
-5. **Testit.** Vitest on käytössä (`npm test`), ja
-   `src/lib/production-schedule.ts` on testattu. Seuraavaksi kannattaa testata
-   Server Actionsien ja rajapintareittien validointi.
-6. **Validointi API-rajapinnoissa.** `src/lib/validation.ts` kattaa
+5. **Testit.** Vitest on käytössä (`npm test`). Testattuja ovat
+   `src/lib/production-schedule.ts` ja tiedonsiirron puhdas logiikka.
+   Seuraavaksi kannattaa testata Server Actionsien ja rajapintareittien
+   validointi sekä tiedonsiirron tuonti tietokantaa vasten.
+6. **Muokkaus ja poisto.** Useimmilla sivuilla voi vain lisätä ja listata.
+   Muokkaus onnistuu toistaiseksi tiedonsiirron kautta (vie, muokkaa, tuo).
+7. **Validointi API-rajapinnoissa.** `src/lib/validation.ts` kattaa
    Tuotantoaikataulu-rajapinnan; muut Server Actions käyttävät kevyempää
    inline-zod-validointia - yhtenäistä tyyliä jos halutaan.
 
