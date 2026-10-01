@@ -182,6 +182,7 @@ export default async function TiedonsiirtoPage({ searchParams }: { searchParams:
                     <td className="py-2 pr-3 text-ink-2">{tyypinKuvaus(s)}</td>
                     <td className="py-2 pr-3 text-ink-2">
                       {s.vainVienti && <span className="badge muted mr-1">vain vienti</span>}
+                      {s.vainTuonti && <span className="badge muted mr-1">vain tuonti</span>}
                       {s.kuvaus}
                       {s.aliakset && s.aliakset.length > 0 && (
                         <span className="text-ink-muted text-xs"> Myös otsikot: {s.aliakset.join(", ")}.</span>

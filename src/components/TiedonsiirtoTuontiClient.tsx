@@ -89,10 +89,23 @@ function KohteenRaportti({ k, suodatin }: { k: KohdeRaportti; suodatin: Suodatin
   );
 }
 
-export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: KohdeValinta[]; oletusKohde?: string }) {
+export function TiedonsiirtoTuontiClient({
+  kohteet,
+  oletusKohde,
+  oletukset,
+  automaattinen = true,
+}: {
+  kohteet: KohdeValinta[];
+  oletusKohde?: string;
+  /** Oletusarvot sarakkeille, esim. { projekti: "..." } projektisivun tuonnissa. */
+  oletukset?: Record<string, string>;
+  /** Näytetäänkö "Tunnista välilehdistä" -vaihtoehto. */
+  automaattinen?: boolean;
+}) {
   const router = useRouter();
   const [tiedosto, setTiedosto] = useState<File | null>(null);
-  const [kohde, setKohde] = useState(oletusKohde ?? "automaattinen");
+  const [kohde, setKohde] = useState(oletusKohde ?? (automaattinen ? "automaattinen" : kohteet[0]?.avain));
+  const [taulukko, setTaulukko] = useState<string | undefined>(undefined);
   const [tapa, setTapa] = useState("lisaa-ja-paivita");
   const [virheet, setVirheet] = useState("peru");
   const [raportti, setRaportti] = useState<TuontiRaportti | null>(null);
@@ -106,9 +119,10 @@ export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: Ko
   function nollaa() {
     setRaportti(null);
     setVirhe(null);
+    setTaulukko(undefined);
   }
 
-  async function laheta(esikatselu: boolean) {
+  async function laheta(esikatselu: boolean, valittuTaulukko = taulukko) {
     if (!tiedosto) return;
     setKaynnissa(esikatselu ? "esikatselu" : "tallennus");
     setVirhe(null);
@@ -118,6 +132,8 @@ export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: Ko
     data.set("tapa", tapa);
     data.set("virheet", virheet);
     data.set("esikatselu", String(esikatselu));
+    if (oletukset) data.set("oletukset", JSON.stringify(oletukset));
+    if (valittuTaulukko) data.set("taulukko", valittuTaulukko);
     try {
       const res = await fetch("/api/tiedonsiirto/tuonti", { method: "POST", body: data });
       const json = await res.json().catch(() => null);
@@ -167,7 +183,7 @@ export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: Ko
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-ink-2">Kohde</span>
           <select className={kentta} value={kohde} onChange={(e) => (setKohde(e.target.value), nollaa())}>
-            <option value="automaattinen">Tunnista välilehdistä (Excel-työkirja tai JSON-varmuuskopio)</option>
+            {automaattinen && <option value="automaattinen">Tunnista välilehdistä (Excel-työkirja tai JSON-varmuuskopio)</option>}
             {osiot.map((o) => (
               <optgroup key={o} label={o}>
                 {kohteet
@@ -230,7 +246,28 @@ export function TiedonsiirtoTuontiClient({ kohteet, oletusKohde }: { kohteet: Ko
             </p>
             <Yhteenveto y={raportti.yhteenveto} />
           </div>
-          {raportti.ohitetutTaulukot.length > 0 && (
+          {kohde !== "automaattinen" && raportti.kaikkiTaulukot.length > 1 && (
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-ink-2">Luettu välilehti:</span>
+              <select
+                className={kentta}
+                value={taulukko ?? raportti.kohteet[0]?.taulukko ?? ""}
+                disabled={kaynnissa !== null}
+                onChange={(e) => {
+                  setTaulukko(e.target.value);
+                  laheta(true, e.target.value);
+                }}
+              >
+                {raportti.kaikkiTaulukot.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-ink-muted">Valittu automaattisesti tunnistettujen sarakkeiden perusteella.</span>
+            </label>
+          )}
+          {raportti.ohitetutTaulukot.length > 0 && kohde === "automaattinen" && (
             <p className="text-xs text-ink-2">Tunnistamattomat välilehdet ohitettiin: {raportti.ohitetutTaulukot.join(", ")}</p>
           )}
           <div className="flex gap-2 text-xs">

@@ -117,45 +117,6 @@ export async function createOrderConfirmation(formData: FormData) {
   revalidatePath(`/asiakkuuksien-hallinta/projektit/${parsed.projectId}`);
 }
 
-const procurementItemInput = z.object({
-  projectId: z.string().cuid(),
-  description: z.string().trim().min(1),
-  quantity: z.coerce.number().min(0).default(1),
-  unit: z.string().trim().default("kpl"),
-  supplier: z.string().trim().optional(),
-  neededBy: z.string().optional(),
-});
-
-export async function addProcurementItem(formData: FormData) {
-  const parsed = procurementItemInput.parse({
-    projectId: formData.get("projectId"),
-    description: formData.get("description"),
-    quantity: formData.get("quantity") || undefined,
-    unit: formData.get("unit") || undefined,
-    supplier: formData.get("supplier") || undefined,
-    neededBy: formData.get("neededBy") || undefined,
-  });
-
-  const plan = await prisma.procurementPlan.upsert({
-    where: { projectId: parsed.projectId },
-    create: { projectId: parsed.projectId },
-    update: {},
-  });
-
-  await prisma.procurementItem.create({
-    data: {
-      procurementPlanId: plan.id,
-      description: parsed.description,
-      quantity: parsed.quantity,
-      unit: parsed.unit,
-      supplier: parsed.supplier || null,
-      neededBy: parsed.neededBy ? new Date(parsed.neededBy) : null,
-    },
-  });
-
-  revalidatePath(`/asiakkuuksien-hallinta/projektit/${parsed.projectId}/hankintasuunnitelma`);
-}
-
 const milestoneInput = z.object({
   projectId: z.string().cuid(),
   title: z.string().trim().min(1),

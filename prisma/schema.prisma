@@ -5,7 +5,8 @@
 // vastaavuustaulukosta.
 //
 //   1. Asiakkuuksien hallinta  -> Customer, Offer, Project, OrderConfirmation,
-//                                 ProcurementPlan, ProjectMilestone,
+//                                 ProcurementPlan, ProcurementItem, ScheduleTask,
+//                                 ProjectMilestone, ProjectTodo, ProjectMember,
 //                                 ProductionScheduleItem ("Tuotantoaikataulu projektit")
 //   2. Tuotehallinta           -> Product, PriceList, PriceListItem
 //   3. Reklamaatiot            -> Complaint
@@ -31,23 +32,34 @@ datasource db {
 }
 
 // ============================================================
-// 0. Käyttäjät (stub tulevaa kirjautumista varten - ei vielä
-//    kytketty mihinkään. Claude Code: lisää NextAuth tms. tähän).
+// 0. Henkilöt (henkilörekisteri, /henkilot)
+//
+// Henkilöille jaetaan projektien tehtäviä ja hankintoja, ja heistä
+// kootaan projektiorganisaatio. Kirjautumista ei vielä ole; kun se
+// lisätään (esim. NextAuth), se käyttää samoja rivejä.
 // ============================================================
 
 enum UserRole {
   ADMIN
   MYYNTI
+  SUUNNITTELU
+  HANKINTA
   TUOTANTO
   LAATU
 }
 
 model User {
   id        String   @id @default(cuid())
-  email     String   @unique
+  email     String?  @unique // vapaaehtoinen, kunnes kirjautuminen lisätään
   name      String
+  phone     String?
   role      UserRole @default(TUOTANTO)
+  active    Boolean  @default(true) // ei-aktiivisille ei jaeta uusia tehtäviä
   createdAt DateTime @default(now())
+
+  procurementItems ProcurementItem[]
+  todos            ProjectTodo[]
+  memberships      ProjectMember[]
 }
 
 // ============================================================
@@ -122,6 +134,9 @@ model Project {
   orderConfirmation OrderConfirmation?
   procurementPlan   ProcurementPlan?
   milestones        ProjectMilestone[]
+  scheduleTasks     ScheduleTask[]
+  todos             ProjectTodo[]
+  members           ProjectMember[]
   productionScheduleItems ProductionScheduleItem[]
   productionFolder  ProductionFolder?
 
@@ -155,23 +170,145 @@ model ProcurementPlan {
   @@map("procurement_plans")
 }
 
-model ProcurementItem {
-  id                String          @id @default(cuid())
-  procurementPlanId String
-  procurementPlan   ProcurementPlan @relation(fields: [procurementPlanId], references: [id], onDelete: Cascade)
-  description       String
-  quantity          Float           @default(1)
-  unit              String          @default("kpl")
-  supplier          String?
-  neededBy          DateTime?
-  ordered           Boolean         @default(false)
+// Hankintarivin tyyppi (Excelin "Pääryhmä").
+enum ProcurementKind {
+  TYOSUORITE
+  MATERIAALI
+}
 
+// Hankinnan vaihe. Rivi etenee järjestyksessä AINEISTO -> ... -> VALMIS.
+// Jokaisella vaiheella on takaraja, joka lasketaan toimituspäivästä
+// taaksepäin (ks. src/lib/hankinta.ts).
+enum ProcurementPhase {
+  AINEISTO // aineiston keräys
+  PYYNTO // tarjouspyyntö lähetettävä
+  TARJOUS // tarjouksia odotetaan
+  VERTAILU // tarjousten vertailu
+  SOPIMUS // urakkaneuvottelut ja sopimus
+  TOIMITUS // sopimus tehty, toimitusta odotetaan
+  VALMIS // toimitettu
+  EI_TARVITA
+}
+
+// Hankintasuunnitelman rivi. Rakenne vastaa projektinhallinnan Excelin
+// Hankintasuunnitelma-välilehteä: toimituspäivä tulee projektiaikataulun
+// tehtävän (scheduleTaskCode) aloituksesta, ja vaiheiden takarajat lasketaan
+// siitä taaksepäin vaiheiden kestoilla (kalenteripäiviä).
+model ProcurementItem {
+  id                String           @id @default(cuid())
+  procurementPlanId String
+  procurementPlan   ProcurementPlan  @relation(fields: [procurementPlanId], references: [id], onDelete: Cascade)
+  kind              ProcurementKind  @default(MATERIAALI)
+  littera           String? // esim. "3300"
+  description       String // Excelin "Tehtävä"
+  quantity          Float            @default(1)
+  unit              String           @default("kpl")
+  scheduleTaskCode  String? // projektiaikataulun tehtävätunnus, esim. "T3"
+  neededBy          DateTime? // käsin annettu toimituspäivä, jos aikataulutehtävää ei ole
+  materialDays      Int              @default(1) // aineiston keräys
+  requestDays       Int              @default(5) // pyyntöaika
+  comparisonDays    Int              @default(1) // vertailuaika
+  negotiationDays   Int              @default(2) // urakkaneuvottelut
+  deliveryDays      Int              @default(14) // toimitusaika vrk
+  phase             ProcurementPhase @default(AINEISTO)
+  supplier          String? // urakoitsija / toimittaja
+  agreedDelivery    DateTime? // sovittu toimituspäivä
+  costCents         Int? // kustannus alv 0 %
+  paymentInfo       String? // lisätieto maksuihin
+  notes             String?
+  assigneeId        String?
+  assignee          User?            @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([assigneeId])
   @@map("procurement_items")
 }
 
-// Projektiaikataulu: projektin ylätason virstanpylväät (asiakkaalle näkyvä
-// aikataulu). Eri asia kuin ProductionScheduleItem, joka on tuotannon
-// yksityiskohtainen viikkotason aikataulu (kaavion "Tuotannon ohjaus" -osio).
+// Projektiaikataulun tehtävä. Vastaa projektinhallinnan Excelin
+// aikataulu-välilehteä: tehtävällä on tunnus (T1, T2, ...) ja edeltävä
+// tehtävä (tunnuksena). Aloitus on joko kiinteä tai edeltäjän ennuste +
+// siirto kalenteripäivää, ja ennuste lasketaan samalla
+// WORKDAY.INTL(aloitus, kesto, 1) - 1 -kaavalla kuin tuotantoaikataulussa
+// (ks. src/lib/projektiaikataulu.ts). Edeltäjä on tunnus eikä viiteavain,
+// jotta tehtäviä voi tuoda missä järjestyksessä tahansa.
+//
+// EI sama kuin ProductionScheduleItem (koko tuotannon Gantt).
+model ScheduleTask {
+  id              String    @id @default(cuid())
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code            String // tehtävätunnus, esim. "T1"
+  title           String
+  category        String? // luokka, esim. "Työsuorite"
+  contractor      String? // urakoitsija
+  mainGroup       Int? // pääryhmä
+  predecessorCode String? // "edellyttää tehtävät"
+  offsetDays      Int       @default(0) // siirto, kalenteripäivää
+  crew            Int? // miesvahvuus
+  progress        Int       @default(0) // valmiusaste 0-100
+  fixedStart      DateTime? // kiinteä aloitus (ketjun alku)
+  durationDays    Int       @default(1) // kesto työpäivinä
+  seq             Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([projectId, code])
+  @@map("schedule_tasks")
+}
+
+enum TodoStatus {
+  AVOIN
+  KESKEN
+  VALMIS
+}
+
+enum TodoArea {
+  LUVITUS
+  SUUNNITTELU
+  HANKINTA
+  MUU
+}
+
+// Projektin oma tehtävä tehtäväluettelossa (hankintarivien lisäksi), esim.
+// luvat ja suunnittelukatselmukset. Takaraja on annettu päivä tai
+// linkitetyn aikataulutehtävän aloitus.
+model ProjectTodo {
+  id               String     @id @default(cuid())
+  projectId        String
+  project          Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title            String
+  notes            String?
+  area             TodoArea   @default(SUUNNITTELU)
+  status           TodoStatus @default(AVOIN)
+  dueDate          DateTime?
+  scheduleTaskCode String?
+  assigneeId       String?
+  assignee         User?      @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([assigneeId])
+  @@map("project_todos")
+}
+
+// Projektiorganisaatio: kuka vastaa mistäkin (Excelin yhteenveto-välilehti,
+// esim. "Suunnittelu/hankinta: Mikko").
+model ProjectMember {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String // esim. "Hankekehitys/luvitus", "Suunnittelu/hankinta", "Tuotanto"
+
+  @@unique([projectId, userId, role])
+  @@map("project_members")
+}
+
+// Virstanpylväät: asiakkaalle näkyvät projektin ylätason päivämäärät.
+// Näytetään Projektiaikataulu-sivulla tehtäväaikataulun alla. Eri asia
+// kuin ProductionScheduleItem (koko tuotannon Gantt).
 model ProjectMilestone {
   id        String    @id @default(cuid())
   projectId String

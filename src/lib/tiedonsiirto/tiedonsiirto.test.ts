@@ -207,6 +207,25 @@ describe("otsikoiden tunnistus ja rivien valmistelu", () => {
     expect(v.rivit[0].virheet).toEqual(["Nimi on pakollinen"]);
   });
 
+  it("löytää otsikkorivin otsikkorivien alta ja ohittaa muut kuin tekstiotsikot", () => {
+    // Kuten projektinhallinnan Excel: otsikot rivillä 3, yläpuolella projektin tiedot, oikealla Gantt-päivämääriä.
+    const v = valmistele(
+      nimikkeet,
+      taulukko(["PROJEKTI", "Firstcamp"], [], ["Koodi", "Nimi", new Date(2026, 0, 1)], ["A-1", "Aa", "x"], [null, null, "y"])
+    );
+    expect(v.raportti.tunnistetut.map((t) => t.sarake)).toEqual(["Koodi", "Nimi"]);
+    expect(v.raportti.tuntemattomat).toEqual([]);
+    // Viimeisellä rivillä on arvo vain tunnistamattomassa sarakkeessa, joten se ohitetaan.
+    expect(v.rivit).toHaveLength(1);
+  });
+
+  it("oletusarvot täyttävät puuttuvan pakollisen sarakkeen ja tyhjät solut", () => {
+    const projektit = haeKohde("aikataulutehtavat")!;
+    const v = valmistele(projektit, taulukko(["Tehtävätunnus", "Tehtävä", "Kesto"], ["T1", "Suunnittelu", 5]), { projekti: "Iglut" });
+    expect(v.raportti.puuttuvatPakolliset).toEqual([]);
+    expect(v.rivit[0].arvot).toMatchObject({ projekti: "Iglut", tunnus: "T1", kesto: 5 });
+  });
+
   it("kohdistaa välilehdet kohteisiin riippuvuusjärjestyksessä ja ohittaa tunnistamattomat", () => {
     const t = (nimi: string): Taulukko => ({ nimi, rivit: [{ nro: 1, solut: ["x"] }, { nro: 2, solut: ["y"] }] });
     const { parit, ohitetut } = kohdistaTaulukot([t("Tarjoukset"), t("Muistiinpanot"), t("asiakkaat"), t("Ohjeet")], "automaattinen");

@@ -49,7 +49,10 @@ const SECTIONS = [
 ] as const;
 
 // Poikkileikkaavat työkalut, jotka eivät ole kaavion solmuja.
-const JARJESTELMA = [{ title: "Tiedonsiirto", href: "/tiedonsiirto" }] as const;
+const JARJESTELMA = [
+  { title: "Henkilöt", href: "/henkilot" },
+  { title: "Tiedonsiirto", href: "/tiedonsiirto" },
+] as const;
 
 const KAIKKI_REITIT = [
   "/",

@@ -42,4 +42,20 @@ export const tuontiInput = z.object({
   tapa: z.enum(["lisaa-ja-paivita", "vain-uudet", "vain-paivita"]).default("lisaa-ja-paivita"),
   virheet: z.enum(["peru", "ohita"]).default("peru"),
   esikatselu: z.enum(["true", "false"]).transform((v) => v === "true"),
+  // JSON-olio: sarakkeen avain -> oletusarvo (esim. {"projekti": "Firstcamp iglut"})
+  oletukset: z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      if (!v) return undefined;
+      try {
+        const o = JSON.parse(v);
+        if (typeof o === "object" && o && !Array.isArray(o)) return o as Record<string, string>;
+      } catch {
+        // käsitellään alla
+      }
+      ctx.addIssue({ code: "custom", message: "oletukset ei ole kelvollinen JSON-olio" });
+      return z.NEVER;
+    }),
+  taulukko: z.string().optional(),
 });

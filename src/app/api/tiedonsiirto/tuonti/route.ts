@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
     tapa: form.get("tapa") || undefined,
     virheet: form.get("virheet") || undefined,
     esikatselu: form.get("esikatselu"),
+    oletukset: form.get("oletukset") || undefined,
+    taulukko: form.get("taulukko") || undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

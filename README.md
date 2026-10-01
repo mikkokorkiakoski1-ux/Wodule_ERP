@@ -73,6 +73,13 @@ dopit, tuotantokansiot, työmääräimet ja piirustukset.
 - Tiedonsiirto: kaikkien osioiden tuonti ja vienti (`/tiedonsiirto`).
 - Ulkoasu Wodulen brändi-ilmeen mukaiseksi (wodule.fi).
 
+**Tilanne 1.10.2026.** Projektinhallinta projektinhallinnan Excelin pohjalta:
+
+- Projektiaikataulu tehtäväaikatauluksi (T1, T2, …, edeltäjä, siirto, kesto, ennuste, Gantt).
+- Hankintasuunnitelma kytketty aikatauluun: toimituspäivä aikataulusta, vaiheiden takarajat taaksepäin, vaiheet ja vastuuhenkilöt.
+- Tehtäväluettelo henkilöittäin, henkilörekisteri (`/henkilot`) ja projektiorganisaatio.
+- Projektin Excelin voi tuoda suoraan projektin sivulta.
+
 Kaikki viisi osiota ovat käytettävissä (lisäys ja listaus tietokannasta), mutta
 moni yksityiskohta on vielä auki. Ehdotettu järjestys:
 
@@ -97,8 +104,10 @@ moni yksityiskohta on vielä auki. Ehdotettu järjestys:
    `src/lib/production-schedule.ts` ja tiedonsiirron puhdas logiikka.
    Seuraavaksi kannattaa testata Server Actionsien ja rajapintareittien
    validointi sekä tiedonsiirron tuonti tietokantaa vasten.
-6. **Muokkaus ja poisto.** Useimmilla sivuilla voi vain lisätä ja listata.
-   Muokkaus onnistuu toistaiseksi tiedonsiirron kautta (vie, muokkaa, tuo).
+6. **Muokkaus ja poisto.** Projektiaikataulussa, hankintasuunnitelmassa,
+   tehtäväluettelossa ja henkilöissä voi muokata ja poistaa. Muilla sivuilla
+   voi vielä vain lisätä ja listata. Niillä muokkaus onnistuu tiedonsiirron
+   kautta (vie, muokkaa, tuo).
 7. **Validointi API-rajapinnoissa.** `src/lib/validation.ts` kattaa
    Tuotantoaikataulu-rajapinnan; muut Server Actions käyttävät kevyempää
    inline-zod-validointia - yhtenäistä tyyliä jos halutaan.
@@ -113,5 +122,7 @@ jatkokehityksessä:
   aloitus lasketaan edellisen rivin ennusteesta + `siirto`. **"Kesto" on ainoa
   aikataulua ohjaava kenttä** - "Laskennallinen kesto" on pelkkä vertailuluku
   eikä saa koskaan syöttää arvoa "Kesto"-kenttään.
-- **Projektiaikataulu** (`ProjectMilestone`) - yksittäisen projektin
-  asiakkaalle näkyvät virstanpylväät, ei kytköksissä yllä olevaan.
+- **Projektiaikataulu** (`ScheduleTask` + virstanpylväät `ProjectMilestone`) -
+  yksittäisen projektin tehtäväaikataulu, jossa tehtävät viittaavat
+  edeltäjiinsä tunnuksella. Ei kytköksissä yllä olevaan. Hankintasuunnitelman
+  takarajat lasketaan tästä aikataulusta.

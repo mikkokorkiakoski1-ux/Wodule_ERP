@@ -39,7 +39,9 @@ export function tunnistaMuoto(tiedostonimi: string): Muoto | null {
 /** Excel-solun arvo tavalliseksi arvoksi (kaavat, linkit, muotoiltu teksti). */
 function solunArvo(v: ExcelJS.CellValue): unknown {
   if (v === null || v === undefined) return null;
-  if (v instanceof Date || typeof v !== "object") return v;
+  // Excelin virhesolujen (#REF! yms.) välimuistiarvo voi olla virheellinen päivämäärä.
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v !== "object") return v;
   if ("result" in v) return solunArvo(v.result as ExcelJS.CellValue);
   if ("richText" in v) return v.richText.map((r) => r.text).join("");
   if ("text" in v) return typeof v.text === "string" ? v.text : solunArvo(v.text as ExcelJS.CellValue);
@@ -131,8 +133,13 @@ export const SISALTOTYYPIT: Record<Muoto, string> = {
   json: "application/json; charset=utf-8",
 };
 
+/** Viennin sarakkeet: kaikki paitsi vain tuontia varten olevat. */
+export function vietavatSarakkeet(kohde: Kohde) {
+  return kohde.sarakkeet.filter((s) => !s.vainTuonti);
+}
+
 export function kirjoitaCsv({ kohde, rivit }: VietavaKohde): string {
-  const s = kohde.sarakkeet;
+  const s = vietavatSarakkeet(kohde);
   return muodostaCsv([s.map((x) => x.otsikko), ...rivit.map((r) => s.map((x) => muotoileCsv(r[x.avain], x)))]);
 }
 
@@ -144,7 +151,7 @@ export function kirjoitaJson(kohteet: VietavaKohde[], viety: Date): string {
     kohteet: Object.fromEntries(
       kohteet.map(({ kohde, rivit }) => [
         kohde.avain,
-        rivit.map((r) => Object.fromEntries(kohde.sarakkeet.map((s) => [s.avain, muotoileJson(r[s.avain], s)]))),
+        rivit.map((r) => Object.fromEntries(vietavatSarakkeet(kohde).map((s) => [s.avain, muotoileJson(r[s.avain], s)]))),
       ])
     ),
   };
@@ -164,7 +171,8 @@ export function valilehdenNimi(kohde: Kohde): string {
 
 function lisaaValilehti(kirja: ExcelJS.Workbook, { kohde, rivit }: VietavaKohde) {
   const lehti = kirja.addWorksheet(valilehdenNimi(kohde), { views: [{ state: "frozen", ySplit: 1 }] });
-  lehti.columns = kohde.sarakkeet.map((s) => ({
+  const sarakkeet = vietavatSarakkeet(kohde);
+  lehti.columns = sarakkeet.map((s) => ({
     header: s.otsikko,
     key: s.avain,
     width: Math.max(12, Math.min(40, s.otsikko.length + 4)),
@@ -172,7 +180,7 @@ function lisaaValilehti(kirja: ExcelJS.Workbook, { kohde, rivit }: VietavaKohde)
   }));
   const otsikko = lehti.getRow(1);
   otsikko.font = { bold: true };
-  kohde.sarakkeet.forEach((s, i) => {
+  sarakkeet.forEach((s, i) => {
     const solu = otsikko.getCell(i + 1);
     // Vain viennissä olevat sarakkeet harmaalla, pakolliset lihavoituna ja tähdellä huomautuksessa.
     solu.fill = { type: "pattern", pattern: "solid", fgColor: { argb: s.vainVienti ? "FFE7E6E1" : "FFF4F3EF" } };
@@ -182,9 +190,9 @@ function lisaaValilehti(kirja: ExcelJS.Workbook, { kohde, rivit }: VietavaKohde)
     solu.note = huom;
   });
   for (const r of rivit) {
-    lehti.addRow(Object.fromEntries(kohde.sarakkeet.map((s) => [s.avain, muotoileXlsx(r[s.avain], s)])));
+    lehti.addRow(Object.fromEntries(sarakkeet.map((s) => [s.avain, muotoileXlsx(r[s.avain], s)])));
   }
-  if (rivit.length > 0) lehti.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: kohde.sarakkeet.length } };
+  if (rivit.length > 0) lehti.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sarakkeet.length } };
 }
 
 function lisaaOhjeet(kirja: ExcelJS.Workbook, kohteet: Kohde[]) {
@@ -210,7 +218,7 @@ function lisaaOhjeet(kirja: ExcelJS.Workbook, kohteet: Kohde[]) {
         sarake: s.otsikko,
         muoto: tyypinKuvaus(s),
         pakollinen: s.pakollinen ? "kyllä" : "",
-        selite: [s.vainVienti ? "Vain vienti." : null, s.kuvaus].filter(Boolean).join(" "),
+        selite: [s.vainVienti ? "Vain vienti." : null, s.vainTuonti ? "Vain tuonti, ei viedä." : null, s.kuvaus].filter(Boolean).join(" "),
       });
     }
   }
@@ -229,7 +237,7 @@ export async function kirjoitaXlsx(kohteet: VietavaKohde[], ohjeet = true): Prom
 export function pohjanRivit(kohde: Kohde): Arvot[] {
   const esimerkki: Arvot = {};
   for (const s of kohde.sarakkeet) {
-    if (s.vainVienti || s.esimerkki === undefined) continue;
+    if (s.vainVienti || s.vainTuonti || s.esimerkki === undefined) continue;
     esimerkki[s.avain] = s.tyyppi === "euro" && typeof s.esimerkki === "number" ? s.esimerkki * 100 : s.esimerkki;
   }
   return [esimerkki];

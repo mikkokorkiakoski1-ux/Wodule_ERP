@@ -37,9 +37,10 @@ tämä taulukko ja `src/components/SectionNav.tsx`.
 | &nbsp;&nbsp;&nbsp;├─ Tilausvahvistus | `/asiakkuuksien-hallinta/projektit/[id]` (Yhteenvetosivu-alla) | `OrderConfirmation` |
 | &nbsp;&nbsp;&nbsp;├─ Tuotantoaikataulu projektit | `/asiakkuuksien-hallinta/projektit/tuotantoaikataulu` | `ProductionScheduleItem` |
 | &nbsp;&nbsp;&nbsp;├─ Projekti 1, Projekti 2, ... | `/asiakkuuksien-hallinta/projektit/[id]` | `Project` (yksi rivi per projekti) |
-| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├─ Yhteenvetosivu | `/asiakkuuksien-hallinta/projektit/[id]` | koostesivu |
-| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├─ Projektiaikataulu | `/asiakkuuksien-hallinta/projektit/[id]/aikataulu` | `ProjectMilestone` |
-| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;└─ Hankintasuunnitelma | `/asiakkuuksien-hallinta/projektit/[id]/hankintasuunnitelma` | `ProcurementPlan`, `ProcurementItem` |
+| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├─ Yhteenvetosivu | `/asiakkuuksien-hallinta/projektit/[id]` | koostesivu + `ProjectMember` (projektiorganisaatio) |
+| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├─ Projektiaikataulu | `/asiakkuuksien-hallinta/projektit/[id]/aikataulu` | `ScheduleTask`, `ProjectMilestone` |
+| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├─ Hankintasuunnitelma | `/asiakkuuksien-hallinta/projektit/[id]/hankintasuunnitelma` | `ProcurementPlan`, `ProcurementItem` |
+| &nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;└─ *Tehtäväluettelo (ei kaaviossa)* | `/asiakkuuksien-hallinta/projektit/[id]/tehtavat` | `ProjectTodo` + `ProcurementItem` |
 | Tuotehallinta | `/tuotehallinta` | - |
 | ├─ Nimikkeistö (Tuote1, Tuote2, ...) | `/tuotehallinta/nimikkeisto` | `Product` |
 | └─ Hinnastot | `/tuotehallinta/hinnastot` | `PriceList`, `PriceListItem` |
@@ -56,7 +57,13 @@ tämä taulukko ja `src/components/SectionNav.tsx`.
 
 | Työkalu | Reitti | Prisma-malli(t) |
 |---|---|---|
+| Henkilöt (henkilörekisteri) | `/henkilot`, `/henkilot/[id]` (henkilön tehtävät kaikista projekteista) | `User` |
 | Tiedonsiirto (tuonti ja vienti) | `/tiedonsiirto`, `/api/tiedonsiirto/{vienti,pohja,tuonti}` | kaikki yllä olevat + `DataTransferLog` |
+
+Projektin alasivuilla on yhteinen layout (`projektit/[projektiId]/layout.tsx`):
+otsikko ja välilehdet Yhteenveto, Projektiaikataulu, Hankintasuunnitelma ja
+Tehtäväluettelo. Tehtäväluettelo ei ole kaavion solmu. Jos se halutaan
+kaavioon, `docs/rakennekaavio.jpg` pitää päivittää käsin.
 
 Tiedonsiirto tuo ja vie kaikkien viiden osion tietoja (CSV, Excel, JSON).
 Jokainen tuotava tietotyyppi on "kohde" tiedostossa
@@ -74,9 +81,23 @@ ajaa saman tuonnin ja perii sen lopuksi.
   Tämä on suoraan portattu aiemmasta Artifact-työkalusta
   (`src/lib/production-schedule.ts`) - kesto/ennuste-kaavat ja
   "Laskennallinen kesto" -tukikenttä ovat identtiset.
-- **Projektiaikataulu** (yksittäisen projektin alla) on kevyempi,
-  asiakkaalle suunnattu virstanpylväslista (`ProjectMilestone`), eri malli ja
-  eri sivu.
+- **Projektiaikataulu** (yksittäisen projektin alla) on projektin oma
+  tehtäväaikataulu (`ScheduleTask`), joka vastaa projektinhallinnan Excelin
+  aikataulu-välilehteä: tehtävällä on tunnus (T1, T2, ...) ja edeltäjä
+  tunnuksena, ja kaavat ovat samat kuin tuotantoaikataulussa
+  (`src/lib/projektiaikataulu.ts` käyttää production-schedule.ts:n funktioita
+  muuttamatta niitä). Samalla sivulla ovat asiakkaalle näkyvät virstanpylväät
+  (`ProjectMilestone`). Projektiaikataulu ei ole kytköksissä tuotannon
+  Ganttiin.
+
+**Hankintasuunnitelma ja aikataulu on kytketty:** hankintarivi
+(`ProcurementItem.scheduleTaskCode`) viittaa aikataulutehtävään, jonka
+aloitus on toimituspäivä. Siitä lasketaan taaksepäin vaiheiden takarajat
+(`src/lib/hankinta.ts`: sopimus = toimitus - toimitusaika, vertailu = sopimus
+- neuvottelut, tarjous = vertailu - vertailuaika, pyyntö = tarjous -
+pyyntöaika, aineisto = pyyntö - keräys). Rivi etenee vaiheittain (Aineisto ->
+Pyyntö -> Tarjous -> Vertailu -> Sopimus -> Toimitus -> Valmis), ja
+tehtäväluettelo näyttää nykyisen vaiheen takarajan vastuuhenkilöittäin.
 
 ## Kansiorakenne
 
@@ -86,6 +107,9 @@ src/
   lib/
     prisma.ts               # Prisma-clientin singleton
     production-schedule.ts  # Tuotantoaikataulun laskentalogiikka (portattu Artifactista)
+    projektiaikataulu.ts    # Projektiaikataulun laskenta (edeltäjät tunnuksina)
+    hankinta.ts             # Hankintojen vaiheet ja takarajat
+    projektinhallinta.ts    # Aikataulun, hankintojen ja tehtäväluettelon tiedonhaku
     validation.ts           # Zod-skeemat API-reiteille
     actions/                # Server Actions per osio (asiakkuudet, tuotehallinta, ...)
     tiedonsiirto/           # Tuonti ja vienti: kohteet, tiedostomuodot, tuontimoottori
@@ -93,6 +117,9 @@ src/
     SectionNav.tsx           # Sivunavigaatio - peilaa kaaviota
     TuotantoaikatauluClient.tsx  # Tuotantoaikataulun interaktiivinen taulukko/Gantt
     TiedonsiirtoTuontiClient.tsx # Tuonnin esikatselu ja tallennus
+    ProjektinValilehdet.tsx  # Projektin alasivujen välilehdet
+    Tehtavalista.tsx         # Tehtäväluettelon taulukko (projekti ja henkilö)
+    projektinhallinta.tsx    # Projektisivujen yhteiset palat (takaraja, virhe, Excel-tuonti)
 prisma/
   schema.prisma
   seed.ts                   # Siemendata, mm. sama 11 riviä kuin Artifact-työkalussa

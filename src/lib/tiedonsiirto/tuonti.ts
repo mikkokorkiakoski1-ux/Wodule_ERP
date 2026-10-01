@@ -26,6 +26,15 @@ export interface TuontiAsetukset {
   /** peru = mikä tahansa virhe perii koko tuonnin; ohita = virheettömät rivit tallennetaan. */
   virheet: "peru" | "ohita";
   esikatselu: boolean;
+  /**
+   * Oletusarvot sarakkeille, joita tiedostossa ei ole tai jotka ovat tyhjiä
+   * (sarakkeen avain -> arvo). Esim. projektisivun tuonnissa
+   * { projekti: "Firstcamp iglut" }, koska projektin Excelissä ei ole
+   * projektisaraketta.
+   */
+  oletukset?: Record<string, string>;
+  /** Yhden kohteen tuonnissa käytettävä välilehti; oletuksena paras osuma. */
+  taulukko?: string;
 }
 
 export interface RiviRaportti {
@@ -57,6 +66,8 @@ export interface TuontiRaportti {
   ohitetutTaulukot: string[];
   yhteenveto: Yhteenveto;
   viesti: string;
+  /** Tiedoston kaikki välilehdet, jotta käyttäjä voi valita toisen. */
+  kaikkiTaulukot: string[];
 }
 
 interface ValmisRivi {
@@ -88,17 +99,29 @@ function kohdeTaulukolle(nimi: string | undefined): Kohde | undefined {
 }
 
 /** Yhdistää luetut taulukot kohteisiin. Palauttaa myös ohitetut taulukot. */
+/** Kuinka monta kohteen saraketta taulukon parhaalta otsikkoriviltä tunnistuu. */
+function osumia(kohde: Kohde, taulukko: Taulukko): number {
+  const hakemisto = sarakeHakemisto(kohde);
+  const i = otsikkorivinIndeksi(taulukko, hakemisto);
+  const r = taulukko.rivit[i];
+  return r ? new Set(r.solut.map((s) => hakemisto.get(normalisoi(String(s ?? "")))).filter(Boolean)).size : 0;
+}
+
 export function kohdistaTaulukot(
   taulukot: Taulukko[],
-  kohdeAvain: string
+  kohdeAvain: string,
+  valittu?: string
 ): { parit: { kohde: Kohde; taulukko: Taulukko }[]; ohitetut: string[] } {
   if (kohdeAvain !== "automaattinen") {
     const kohde = KOHTEET.find((k) => k.avain === kohdeAvain);
     if (!kohde) throw new TuontiVirhe(`Tuntematon kohde: ${kohdeAvain}`);
-    // Yhden kohteen tuonnissa käytetään sen nimistä välilehteä, muuten ensimmäistä ei-tyhjää.
+    // Yhden kohteen tuonnissa: käyttäjän valitsema välilehti, kohteen niminen
+    // välilehti tai se, jonka otsikoista tunnistuu eniten sarakkeita.
+    const ehdokkaat = taulukot.filter((t) => t.rivit.length > 0 && normalisoi(t.nimi ?? "") !== "ohjeet");
     const taulukko =
+      (valittu ? taulukot.find((t) => t.nimi === valittu) : undefined) ??
       taulukot.find((t) => kohdeTaulukolle(t.nimi) === kohde) ??
-      taulukot.find((t) => t.rivit.length > 0 && normalisoi(t.nimi ?? "") !== "ohjeet");
+      ehdokkaat.map((t) => ({ t, n: osumia(kohde, t) })).sort((a, b) => b.n - a.n)[0]?.t;
     if (!taulukko) throw new TuontiVirhe("Tiedostossa ei ole rivejä");
     return {
       parit: [{ kohde, taulukko }],
@@ -140,7 +163,26 @@ function sarakeHakemisto(kohde: Kohde): Map<string, Sarake> {
   return h;
 }
 
-export function valmistele(kohde: Kohde, taulukko: Taulukko): Valmisteltu {
+/**
+ * Otsikkorivi: se ensimmäisistä 15 rivistä, jonka soluista tunnistuu eniten
+ * sarakkeita. Näin taulukon yläpuolella saa olla otsikkorivejä (esim.
+ * projektinhallinnan Excelissä otsikot ovat rivillä 6). Jos mitään ei
+ * tunnisteta, otsikkorivi on ensimmäinen rivi.
+ */
+function otsikkorivinIndeksi(taulukko: Taulukko, hakemisto: Map<string, Sarake>): number {
+  let paras = 0;
+  let parasMaara = 0;
+  taulukko.rivit.slice(0, 15).forEach((r, i) => {
+    const maara = new Set(r.solut.map((s) => hakemisto.get(normalisoi(String(s ?? "")))).filter(Boolean)).size;
+    if (maara > parasMaara) {
+      paras = i;
+      parasMaara = maara;
+    }
+  });
+  return paras;
+}
+
+export function valmistele(kohde: Kohde, taulukko: Taulukko, oletukset: Record<string, string> = {}): Valmisteltu {
   const raportti: KohdeRaportti = {
     kohde: kohde.avain,
     nimi: kohde.nimi,
@@ -152,12 +194,15 @@ export function valmistele(kohde: Kohde, taulukko: Taulukko): Valmisteltu {
     rivit: [],
     yhteenveto: tyhjaYhteenveto(),
   };
-  const [otsikkorivi, ...datarivit] = taulukko.rivit;
+  const hakemisto = sarakeHakemisto(kohde);
+  const alku = otsikkorivinIndeksi(taulukko, hakemisto);
+  const [otsikkorivi, ...datarivit] = taulukko.rivit.slice(alku);
   if (!otsikkorivi) return { kohde, raportti, rivit: [] };
 
-  const hakemisto = sarakeHakemisto(kohde);
   const sarakkeet: (Sarake | null)[] = otsikkorivi.solut.map((solu) => {
-    const otsikko = String(solu ?? "").trim();
+    // Vain tekstisolut ovat otsikoita (Excelin Gantt-ruudukon päivämäärät yms. ohitetaan).
+    if (typeof solu !== "string") return null;
+    const otsikko = solu.trim();
     if (!otsikko) return null;
     const s = hakemisto.get(normalisoi(otsikko));
     if (!s) {
@@ -176,11 +221,27 @@ export function valmistele(kohde: Kohde, taulukko: Taulukko): Valmisteltu {
     return s;
   });
 
+  // Oletusarvot täyttävät puuttuvat sarakkeet ja tyhjät solut.
+  const oletusarvot = new Map<string, unknown>();
+  for (const s of kohde.sarakkeet) {
+    const o = oletukset[s.avain];
+    if (o === undefined || o === "" || s.vainVienti) continue;
+    const tulos = jasennaArvo(o, s);
+    if ("virhe" in tulos) throw new TuontiVirhe(`Oletusarvo ${s.otsikko}: ${tulos.virhe}`);
+    oletusarvot.set(s.avain, tulos.arvo);
+    if (!sarakkeet.includes(s)) raportti.tunnistetut.push({ otsikko: `${s.otsikko} = ${o}`, sarake: s.otsikko });
+  }
+
   raportti.puuttuvatPakolliset = kohde.sarakkeet
-    .filter((s) => s.pakollinen && !sarakkeet.includes(s))
+    .filter((s) => s.pakollinen && !sarakkeet.includes(s) && !oletusarvot.has(s.avain))
     .map((s) => s.otsikko);
 
-  const rivit = datarivit.map(({ nro, solut }) => {
+  // Rivit, joilla ei ole arvoa yhdessäkään tunnistetussa sarakkeessa, ohitetaan
+  // (esim. Excelin Gantt-ruudukko tai muotoillut tyhjät rivit taulukon alla).
+  const tietorivit = datarivit.filter(({ solut }) =>
+    sarakkeet.some((s, i) => s && solut[i] !== null && solut[i] !== undefined && String(solut[i]).trim() !== "")
+  );
+  const rivit = tietorivit.map(({ nro, solut }) => {
     const arvot: Arvot = {};
     const virheet: string[] = [];
     sarakkeet.forEach((s, i) => {
@@ -189,8 +250,11 @@ export function valmistele(kohde: Kohde, taulukko: Taulukko): Valmisteltu {
       if ("virhe" in tulos) virheet.push(`${s.otsikko}: ${tulos.virhe}`);
       else if (tulos.arvo !== undefined) arvot[s.avain] = tulos.arvo;
     });
+    oletusarvot.forEach((arvo, avain) => {
+      if (arvot[avain] === undefined) arvot[avain] = arvo as Arvot[string];
+    });
     for (const s of kohde.sarakkeet) {
-      if (s.pakollinen && sarakkeet.includes(s) && arvot[s.avain] === undefined && !virheet.some((v) => v.startsWith(s.otsikko + ":"))) {
+      if (s.pakollinen && (sarakkeet.includes(s) || oletusarvot.has(s.avain)) && arvot[s.avain] === undefined && !virheet.some((v) => v.startsWith(s.otsikko + ":"))) {
         virheet.push(`${s.otsikko} on pakollinen`);
       }
     }
@@ -229,8 +293,8 @@ function virheteksti(e: unknown): string {
 class Peru extends Error {}
 
 export async function tuo(taulukot: Taulukko[], asetukset: TuontiAsetukset): Promise<TuontiRaportti> {
-  const { parit, ohitetut } = kohdistaTaulukot(taulukot, asetukset.kohde);
-  const valmistellut = parit.map(({ kohde, taulukko }) => valmistele(kohde, taulukko));
+  const { parit, ohitetut } = kohdistaTaulukot(taulukot, asetukset.kohde, asetukset.taulukko);
+  const valmistellut = parit.map(({ kohde, taulukko }) => valmistele(kohde, taulukko, asetukset.oletukset));
 
   const riveja = valmistellut.reduce((n, v) => n + v.rivit.length, 0);
   if (riveja === 0) throw new TuontiVirhe("Tiedostossa ei ole datarivejä otsikkorivin jälkeen");
@@ -299,6 +363,7 @@ export async function tuo(taulukot: Taulukko[], asetukset: TuontiAsetukset): Pro
     ohitetutTaulukot: ohitetut,
     yhteenveto,
     viesti,
+    kaikkiTaulukot: taulukot.map((t) => t.nimi).filter((n): n is string => !!n),
   };
 }
 

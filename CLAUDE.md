@@ -36,7 +36,7 @@ npx vitest run src/lib/production-schedule.test.ts   # yksi tiedosto
 - **Älä aja `npm run build`:ia kehityspalvelimen ollessa käynnissä.** Molemmat käyttävät `.next`-kansiota, ja kehityspalvelin alkaa palauttaa 500-virheitä. Pysäytä palvelin, aja build, poista `.next` ja käynnistä palvelin uudelleen.
 - Tailwindin konfiguraatiomuutokset vaativat kehityspalvelimen uudelleenkäynnistyksen.
 
-Testikehys on Vitest (`vitest.config.ts` määrittää `@/`-aliaksen). Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Testattuja ovat `src/lib/production-schedule.ts` ja tiedonsiirron puhdas logiikka (`src/lib/tiedonsiirto/tiedonsiirto.test.ts`: CSV, arvojen tulkinta, otsikoiden tunnistus). Tietokantaa käyttävää tuontia ei ole yksikkötestattu. Tuotantoaikataulun testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
+Testikehys on Vitest (`vitest.config.ts` määrittää `@/`-aliaksen). Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Testattuja ovat `src/lib/production-schedule.ts`, projektiaikataulun ja hankintojen laskenta (`src/lib/projektiaikataulu.test.ts`) ja tiedonsiirron puhdas logiikka (`src/lib/tiedonsiirto/tiedonsiirto.test.ts`: CSV, arvojen tulkinta, otsikoiden tunnistus). Tietokantaa käyttävää tuontia ei ole yksikkötestattu. Tuotantoaikataulun testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
 
 ## Arkkitehtuuri
 
@@ -79,13 +79,23 @@ Rahasummat tallennetaan kokonaislukuina sentteinä (esim. `amountCents`). Lomakk
 ### Kaksi eri "aikataulua": älä sekoita
 
 - **`ProductionScheduleItem`** ("Tuotantoaikataulu projektit") on koko tuotannon Gantt, jonka laskenta kuvataan yllä. Se kuuluu osioon Asiakkuuksien hallinta > Projektit, **ei** Tuotannon ohjaukseen.
-- **`ProjectMilestone`** ("Projektiaikataulu", `/asiakkuuksien-hallinta/projektit/[id]/aikataulu`) on erillinen ja kevyempi: yhden projektin asiakkaalle näkyvät virstanpylväät. Se ei ole kytköksissä tuotannon Ganttiin.
+- **`ScheduleTask`** ("Projektiaikataulu", `/asiakkuuksien-hallinta/projektit/[id]/aikataulu`) on yhden projektin tehtäväaikataulu projektinhallinnan Excelin mallilla: tehtävällä on tunnus (T1, T2, …) ja edeltäjä tunnuksena (`predecessorCode`, ei viiteavain). Laskenta on tiedostossa `src/lib/projektiaikataulu.ts`. Se käyttää production-schedule.ts:n funktioita, mutta ei saa muuttaa niitä. Samalla sivulla ovat asiakkaalle näkyvät virstanpylväät (`ProjectMilestone`). Projektiaikataulu ei ole kytköksissä tuotannon Ganttiin.
+
+### Projektinhallinta: aikataulu → hankinnat → tehtäväluettelo
+
+Lähde on projektinhallinnan Excel (Firstcamp iglut: välilehdet aikataulu ja Hankintasuunnitelma), ja sen kaavat on toteutettu samoina:
+- `ProcurementItem.scheduleTaskCode` viittaa aikataulutehtävään. Toimituspäivä on tehtävän laskettu aloitus, tai `neededBy`, jos tehtävää ei ole.
+- Vaiheiden takarajat lasketaan toimituspäivästä taaksepäin **kalenteripäivinä** (`src/lib/hankinta.ts`). Testit `src/lib/projektiaikataulu.test.ts` tarkistavat ne Excelin laskemia arvoja vasten.
+- `phase` etenee järjestyksessä Aineisto → Pyyntö → Tarjous → Vertailu → Sopimus → Toimitus → Valmis (tai Ei tarvita). Tehtäväluettelo (`/projektit/[id]/tehtavat`) näyttää nykyisen vaiheen takarajan, ja siinä on mukana myös omat tehtävät (`ProjectTodo`). Luettelon voi ryhmitellä henkilöittäin (`User`, `/henkilot`).
+- Tiedonsiirto tuo projektin Excel-välilehdet sellaisenaan: otsikkorivi ja välilehti tunnistetaan automaattisesti, ja projekti annetaan oletusarvona (`oletukset`).
+
+Projektinhallinnan Server Actions (`src/lib/actions/projektinhallinta.ts`) palaavat lomakkeen `paluu`-kentän osoitteeseen. Virheet välitetään `?virhe=`-parametrina, jonka sivu näyttää `<Virhe>`-komponentilla. Muokkauslomake avataan parametrilla `?muokkaa=<id>`.
 
 Tuotannon ohjaus on oma osionsa: jokaisella projektilla on Sharepoint-tuotantokansio (`ProductionFolder`), jonka alla ovat työmääräimet (`WorkOrder`) ja piirustukset (`Drawing`).
 
 ## Tunnetut puutteet (tarkoituksellisia, ks. README:n Jatkokehitys-osio)
 
-- `User` ja `UserRole` ovat skeemassa, mutta mikään ei vielä käytä niitä, joten kirjautumista ei ole.
+- `User` on henkilörekisteri, jonka henkilöille jaetaan tehtäviä, mutta kirjautumista ei ole. Kuka tahansa voi muokata mitä tahansa.
 - Tiedostot (`QaDocument`, `Drawing`, tarjousten liitteet) ovat pelkkiä `fileUrl`-tekstikenttiä. `ProductionFolder.sharepointUrl` on pelkkä linkki; Microsoft Graph -integraatiota ei ole.
 - `TuotantoaikatauluClient.tsx`:n Gantt on yksinkertaistettu: ei kuukausi- tai viikko-otsikoita, ja tooltipit ovat pelkkiä `title`-attribuutteja.
 - Validointityyli on epäyhtenäinen: rajapintareiteillä jaetut skeemat `validation.ts`:ssä, Server Actionseissa inline-zod.

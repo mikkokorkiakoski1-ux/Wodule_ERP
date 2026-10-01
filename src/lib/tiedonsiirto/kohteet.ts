@@ -22,6 +22,8 @@
  */
 import type { Prisma } from "@prisma/client";
 import { recompute, statusLabel } from "@/lib/production-schedule";
+import { isoViikko, laskeProjektiaikataulu } from "@/lib/projektiaikataulu";
+import { VAIHEET, laskeTakarajat } from "@/lib/hankinta";
 import { jasennaYtunnus, type Arvo, type Sarake, type Valinta } from "./arvot";
 
 export type Tx = Prisma.TransactionClient;
@@ -61,6 +63,38 @@ const PROJEKTIN_TILAT: Valinta[] = [
   { arvo: "KAYNNISSA", nimi: "Käynnissä" },
   { arvo: "VALMIS", nimi: "Valmis" },
   { arvo: "KESKEYTETTY", nimi: "Keskeytetty" },
+];
+
+const HANKINNAN_TYYPIT: Valinta[] = [
+  { arvo: "MATERIAALI", nimi: "Materiaali" },
+  { arvo: "TYOSUORITE", nimi: "Työsuorite" },
+  // Excelin kirjoitusasut; vienti käyttää yllä olevia nimiä.
+  { arvo: "MATERIAALI", nimi: "Materiaalit" },
+  { arvo: "TYOSUORITE", nimi: "Työsuoritteet" },
+];
+
+const HANKINNAN_VAIHEET: Valinta[] = VAIHEET.map((v) => ({ arvo: v.arvo, nimi: v.nimi }));
+
+const TEHTAVAN_ALUEET: Valinta[] = [
+  { arvo: "LUVITUS", nimi: "Luvitus" },
+  { arvo: "SUUNNITTELU", nimi: "Suunnittelu" },
+  { arvo: "HANKINTA", nimi: "Hankinta" },
+  { arvo: "MUU", nimi: "Muu" },
+];
+
+const TEHTAVAN_TILAT: Valinta[] = [
+  { arvo: "AVOIN", nimi: "Avoin" },
+  { arvo: "KESKEN", nimi: "Kesken" },
+  { arvo: "VALMIS", nimi: "Valmis" },
+];
+
+const HENKILON_ROOLIT: Valinta[] = [
+  { arvo: "ADMIN", nimi: "Ylläpitäjä" },
+  { arvo: "MYYNTI", nimi: "Myynti" },
+  { arvo: "SUUNNITTELU", nimi: "Suunnittelu" },
+  { arvo: "HANKINTA", nimi: "Hankinta" },
+  { arvo: "TUOTANTO", nimi: "Tuotanto" },
+  { arvo: "LAATU", nimi: "Laatu" },
 ];
 
 const REKLAMAATION_TILAT: Valinta[] = [
@@ -182,6 +216,14 @@ async function etsiProjekti(tx: Tx, a: Arvot): Promise<{ id: string; name: strin
     select: { id: true, name: true },
   });
   return yksi(osumat, `Projektia "${nimi}"`, "Anna myös Asiakas-sarake.");
+}
+
+/** Etsii henkilön sähköpostilla (jos arvossa on @) tai nimellä. */
+async function etsiHenkilo(tx: Tx, nimiTaiEmail: string): Promise<{ id: string; name: string }> {
+  const osumat = nimiTaiEmail.includes("@")
+    ? await tx.user.findMany({ where: { email: nimiTaiEmail.toLowerCase() }, select: { id: true, name: true } })
+    : await tx.user.findMany({ where: { name: eiKirjainkokoa(nimiTaiEmail) }, select: { id: true, name: true } });
+  return yksi(osumat, `Henkilöä "${nimiTaiEmail}"`, "Käytä sähköpostiosoitetta.");
 }
 
 async function etsiNimike(tx: Tx, koodi: string) {
@@ -504,57 +546,129 @@ const virstanpylvaat: Kohde = {
   },
 };
 
+/**
+ * Hankintasuunnitelman rivit. Sarakkeiden aliakset vastaavat
+ * projektinhallinnan Excelin Hankintasuunnitelma-välilehteä, joten
+ * välilehden voi tuoda sellaisenaan (projekti annetaan tuonnissa).
+ */
 const hankintarivit: Kohde = {
   avain: "hankintarivit",
   nimi: "Hankintasuunnitelmat",
   osio: "Asiakkuuksien hallinta",
-  kuvaus: "Projektien hankintasuunnitelmien rivit. Hankintasuunnitelma luodaan projektille tarvittaessa.",
-  tunnistus: "Tunniste, sitten projekti + kuvaus.",
+  kuvaus:
+    "Projektien hankintasuunnitelmien rivit. Toimituspäivä tulee aikataulutehtävästä, ja vaiheiden takarajat lasketaan siitä taaksepäin (viedään tiedoksi).",
+  tunnistus: "Tunniste, sitten projekti + hankinta (+ littera, jos annettu).",
   sarakkeet: [
     TUNNISTE,
     PROJEKTI,
     PROJEKTIN_ASIAKAS,
     ASIAKKAAN_YTUNNUS,
-    { avain: "kuvaus", otsikko: "Kuvaus", tyyppi: "teksti", pakollinen: true, aliakset: ["description", "nimike", "tuote"], esimerkki: "Ikkunat" },
-    { avain: "maara", otsikko: "Määrä", tyyppi: "luku", min: 0, aliakset: ["quantity", "kpl"], esimerkki: 24 },
-    { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", aliakset: ["unit"], esimerkki: "kpl" },
-    { avain: "toimittaja", otsikko: "Toimittaja", tyyppi: "teksti", aliakset: ["supplier"] },
-    { avain: "tarvitaan", otsikko: "Tarvitaan", tyyppi: "pvm", aliakset: ["needed by", "tarvepaiva"] },
-    { avain: "tilattu", otsikko: "Tilattu", tyyppi: "totuus", aliakset: ["ordered"], esimerkki: false },
+    { avain: "tyyppi", otsikko: "Pääryhmä", tyyppi: "valinta", valinnat: HANKINNAN_TYYPIT, aliakset: ["tyyppi", "kind"], esimerkki: "MATERIAALI" },
+    { avain: "littera", otsikko: "Littera", tyyppi: "teksti", esimerkki: "3300" },
+    { avain: "kuvaus", otsikko: "Tehtävä", tyyppi: "teksti", pakollinen: true, aliakset: ["kuvaus", "hankinta", "description", "nimike"], esimerkki: "Liimapuupalkit" },
+    { avain: "aikataulutehtava", otsikko: "Tehtävätunnus", tyyppi: "teksti", aliakset: ["aikataulutehtava", "tehtava tunnus"], kuvaus: "Projektiaikataulun tehtävä, jonka aloitus on toimituspäivä.", esimerkki: "T2" },
+    { avain: "tarvitaan", otsikko: "Toimituspäivä käsin", tyyppi: "pvm", aliakset: ["tarvitaan", "needed by"], kuvaus: "Vain jos tehtävätunnusta ei ole." },
+    { avain: "aineistoPv", otsikko: "Aineiston keräys", tyyppi: "kokonaisluku", min: 0, esimerkki: 1 },
+    { avain: "pyyntoPv", otsikko: "Pyyntöaika", tyyppi: "kokonaisluku", min: 0, esimerkki: 5 },
+    { avain: "vertailuPv", otsikko: "Vertailuaika", tyyppi: "kokonaisluku", min: 0, esimerkki: 1 },
+    { avain: "neuvottelutPv", otsikko: "Urakkaneuvottelut", tyyppi: "kokonaisluku", min: 0, esimerkki: 2 },
+    { avain: "toimitusPv", otsikko: "Toimitusaika vrk", tyyppi: "kokonaisluku", min: 0, esimerkki: 15 },
+    { avain: "vaihe", otsikko: "Vaihe", tyyppi: "valinta", valinnat: HANKINNAN_VAIHEET, esimerkki: "AINEISTO" },
+    { avain: "tarjousKysytty", otsikko: "Tarjous kysytty", tyyppi: "teksti", vainTuonti: true, kuvaus: "x = vaihe Tarjous, ellei Vaihe-saraketta ole." },
+    { avain: "sopimusValmis", otsikko: "Sopimus valmis", tyyppi: "teksti", vainTuonti: true, kuvaus: "x = vaihe Toimitus, - = Ei tarvita, ellei Vaihe-saraketta ole." },
+    { avain: "vastuuhenkilo", otsikko: "Vastuuhenkilö", tyyppi: "teksti", aliakset: ["vastuu", "assignee"], kuvaus: "Henkilön nimi tai sähköposti henkilörekisterissä." },
+    { avain: "toimittaja", otsikko: "Urakoitsija / toimittaja", tyyppi: "teksti", aliakset: ["toimittaja", "supplier", "urakoitsija", "urakoitisja toimittaja"] },
+    { avain: "sovittu", otsikko: "Sovittu toimituspäivä", tyyppi: "pvm", aliakset: ["sovittu"] },
+    { avain: "kustannus", otsikko: "Kustannus alv 0%", tyyppi: "euro", min: 0, aliakset: ["kustannus", "cost"] },
+    { avain: "maksutiedot", otsikko: "Lisätieto maksuihin", tyyppi: "teksti", aliakset: ["lisatito maksuihin", "maksutiedot"] },
+    { avain: "huomiot", otsikko: "Huomiot", tyyppi: "teksti", aliakset: ["notes", "lisatiedot", "sarake1"] },
+    { avain: "maara", otsikko: "Määrä", tyyppi: "luku", min: 0, aliakset: ["quantity"] },
+    { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", aliakset: ["unit"] },
+    { avain: "lAineisto", otsikko: "Aineisto", tyyppi: "pvm", vainVienti: true },
+    { avain: "lPyynto", otsikko: "Pyyntö", tyyppi: "pvm", vainVienti: true },
+    { avain: "lTarjous", otsikko: "Tarjous", tyyppi: "pvm", vainVienti: true },
+    { avain: "lVertailu", otsikko: "Vertailu", tyyppi: "pvm", vainVienti: true },
+    { avain: "lSopimus", otsikko: "Sopimus", tyyppi: "pvm", vainVienti: true },
+    { avain: "lToimitus", otsikko: "Toimituspäivä", tyyppi: "pvm", vainVienti: true },
+    { avain: "lViikko", otsikko: "Toimitusviikko", tyyppi: "kokonaisluku", vainVienti: true },
   ],
   maara: (db) => db.procurementItem.count(),
   async hae(db) {
     const rivit = await db.procurementItem.findMany({
-      include: { procurementPlan: { include: { project: { include: { customer: true } } } } },
-      orderBy: [{ procurementPlan: { project: { name: "asc" } } }, { description: "asc" }],
+      include: { assignee: true, procurementPlan: { include: { project: { include: { customer: true, scheduleTasks: true } } } } },
+      orderBy: [{ procurementPlan: { project: { name: "asc" } } }, { littera: "asc" }, { description: "asc" }],
     });
-    return rivit.map((r) => ({
-      id: r.id,
-      projekti: r.procurementPlan.project.name,
-      asiakas: r.procurementPlan.project.customer.name,
-      asiakasYtunnus: r.procurementPlan.project.customer.businessId,
-      kuvaus: r.description,
-      maara: r.quantity,
-      yksikko: r.unit,
-      toimittaja: r.supplier,
-      tarvitaan: r.neededBy,
-      tilattu: r.ordered,
-    }));
+    const aikataulut = new Map<string, ReturnType<typeof laskeProjektiaikataulu>>();
+    return rivit.map((r) => {
+      const p = r.procurementPlan.project;
+      if (!aikataulut.has(p.id)) aikataulut.set(p.id, laskeProjektiaikataulu(p.scheduleTasks));
+      const toimitus = (r.scheduleTaskCode ? aikataulut.get(p.id)!.get(r.scheduleTaskCode)?.aloitus : null) ?? r.neededBy;
+      const t = toimitus ? laskeTakarajat(toimitus, r) : null;
+      return {
+        id: r.id,
+        projekti: p.name,
+        asiakas: p.customer.name,
+        asiakasYtunnus: p.customer.businessId,
+        tyyppi: r.kind,
+        littera: r.littera,
+        kuvaus: r.description,
+        aikataulutehtava: r.scheduleTaskCode,
+        tarvitaan: r.neededBy,
+        aineistoPv: r.materialDays,
+        pyyntoPv: r.requestDays,
+        vertailuPv: r.comparisonDays,
+        neuvottelutPv: r.negotiationDays,
+        toimitusPv: r.deliveryDays,
+        vaihe: r.phase,
+        vastuuhenkilo: r.assignee?.name ?? null,
+        toimittaja: r.supplier,
+        sovittu: r.agreedDelivery,
+        kustannus: r.costCents,
+        maksutiedot: r.paymentInfo,
+        huomiot: r.notes,
+        maara: r.quantity,
+        yksikko: r.unit,
+        lAineisto: t?.aineisto ?? null,
+        lPyynto: t?.pyynto ?? null,
+        lTarjous: t?.tarjous ?? null,
+        lVertailu: t?.vertailu ?? null,
+        lSopimus: t?.sopimus ?? null,
+        lToimitus: toimitus,
+        lViikko: toimitus ? isoViikko(toimitus) : null,
+      };
+    });
   },
   async tuoRivi(a, tx, tapa) {
     const projekti = await etsiProjekti(tx, a);
     const kuvaus = teksti(a, "kuvaus")!;
+    const littera = teksti(a, "littera");
     const suunnitelma = await tx.procurementPlan.upsert({ where: { projectId: projekti.id }, create: { projectId: projekti.id }, update: {} });
     let olemassa = await idlla(a, (id) => tx.procurementItem.findUnique({ where: { id } }));
-    olemassa ??= await tx.procurementItem.findFirst({ where: { procurementPlanId: suunnitelma.id, description: eiKirjainkokoa(kuvaus) } });
+    olemassa ??= await tx.procurementItem.findFirst({
+      where: { procurementPlanId: suunnitelma.id, description: eiKirjainkokoa(kuvaus), ...(littera ? { littera } : {}) },
+    });
+    const vastuu = teksti(a, "vastuuhenkilo");
     const data = {
       procurementPlanId: suunnitelma.id,
+      kind: a.tyyppi as "TYOSUORITE" | "MATERIAALI" | undefined,
+      littera,
       description: kuvaus,
+      scheduleTaskCode: teksti(a, "aikataulutehtava")?.toUpperCase(),
+      neededBy: a.tarvitaan as Date | undefined,
+      materialDays: a.aineistoPv as number | undefined,
+      requestDays: a.pyyntoPv as number | undefined,
+      comparisonDays: a.vertailuPv as number | undefined,
+      negotiationDays: a.neuvottelutPv as number | undefined,
+      deliveryDays: a.toimitusPv as number | undefined,
+      phase: (a.vaihe as Prisma.ProcurementItemCreateInput["phase"]) ?? vaiheMerkinnoista(teksti(a, "tarjousKysytty"), teksti(a, "sopimusValmis")),
+      assigneeId: vastuu ? (await etsiHenkilo(tx, vastuu)).id : undefined,
+      supplier: teksti(a, "toimittaja"),
+      agreedDelivery: a.sovittu as Date | undefined,
+      costCents: a.kustannus as number | undefined,
+      paymentInfo: teksti(a, "maksutiedot"),
+      notes: teksti(a, "huomiot"),
       quantity: a.maara as number | undefined,
       unit: teksti(a, "yksikko"),
-      supplier: teksti(a, "toimittaja"),
-      neededBy: a.tarvitaan as Date | undefined,
-      ordered: a.tilattu as boolean | undefined,
     };
     const tulos = await tallenna(
       tapa,
@@ -562,7 +676,265 @@ const hankintarivit: Kohde = {
       () => tx.procurementItem.create({ data: { ...data, id: teksti(a, "id") } }),
       (o) => tx.procurementItem.update({ where: { id: o.id }, data })
     );
-    return { tulos, tunniste: `${projekti.name}: ${kuvaus}` };
+    return { tulos, tunniste: `${projekti.name}: ${[littera, kuvaus].filter(Boolean).join(" ")}` };
+  },
+};
+
+/**
+ * Projektinhallinnan Excelin x-merkinnät vaiheeksi:
+ * sopimus valmis "x" -> Toimitus, "-" -> Ei tarvita; tarjous kysytty "x" -> Tarjous.
+ */
+function vaiheMerkinnoista(tarjousKysytty?: string, sopimusValmis?: string) {
+  const s = sopimusValmis?.trim().toLowerCase();
+  const t = tarjousKysytty?.trim().toLowerCase();
+  if (s === "x") return "TOIMITUS" as const;
+  if (s === "-") return "EI_TARVITA" as const;
+  if (t === "x") return "TARJOUS" as const;
+  if (t === "-") return "EI_TARVITA" as const;
+  return undefined;
+}
+
+const aikataulutehtavat: Kohde = {
+  avain: "aikataulutehtavat",
+  nimi: "Projektiaikataulut",
+  osio: "Asiakkuuksien hallinta",
+  kuvaus:
+    "Projektiaikataulujen tehtävät (T1, T2, ...). Sarakkeet vastaavat projektinhallinnan Excelin aikataulu-välilehteä. Laskettu aloitus ja ennuste viedään tiedoksi.",
+  tunnistus: "Projekti + tehtävätunnus.",
+  sarakkeet: [
+    PROJEKTI,
+    PROJEKTIN_ASIAKAS,
+    ASIAKKAAN_YTUNNUS,
+    { avain: "tunnus", otsikko: "Tehtävätunnus", tyyppi: "teksti", pakollinen: true, aliakset: ["tunnus", "tehtava tunnus", "code"], esimerkki: "T1" },
+    { avain: "tehtava", otsikko: "Tehtävä", tyyppi: "teksti", pakollinen: true, aliakset: ["title"], esimerkki: "Suunnitteluvaihe" },
+    { avain: "luokka", otsikko: "Luokka", tyyppi: "teksti", esimerkki: "Työsuorite" },
+    { avain: "urakoitsija", otsikko: "Urakoitsija", tyyppi: "teksti", esimerkki: "Woodcomp" },
+    { avain: "paaryhma", otsikko: "Pääryhmä", tyyppi: "kokonaisluku" },
+    { avain: "edeltaja", otsikko: "Edellyttää tehtävät", tyyppi: "teksti", aliakset: ["edeltaja", "edeltava tehtava"], kuvaus: "Edeltävän tehtävän tunnus." },
+    { avain: "siirto", otsikko: "Siirto", tyyppi: "kokonaisluku", kuvaus: "Kalenteripäivää edeltäjän ennusteesta.", esimerkki: 0 },
+    { avain: "miesvahvuus", otsikko: "Miesvahvuus", tyyppi: "kokonaisluku", min: 0 },
+    { avain: "valmiusaste", otsikko: "Valmiusaste", tyyppi: "luku", min: 0, max: 100, kuvaus: "0-100 %, tai Excelin tapaan 0-1 (1 = valmis).", esimerkki: 0 },
+    { avain: "kiintea", otsikko: "Kiinteä aloitus", tyyppi: "pvm", aliakset: ["fixed start"], kuvaus: "Ketjun alku. Ohittaa edeltäjän." },
+    { avain: "aloitus", otsikko: "Aloitus", tyyppi: "pvm", vainTuonti: true, kuvaus: "Excelin ALOITUS: käytetään kiinteänä aloituksena vain, jos edeltäjää ei ole." },
+    { avain: "kesto", otsikko: "Kesto", tyyppi: "kokonaisluku", pakollinen: true, min: 1, kuvaus: "Työpäivää (ma-pe).", esimerkki: 10 },
+    { avain: "lAloitus", otsikko: "Laskettu aloitus", tyyppi: "pvm", vainVienti: true },
+    { avain: "lEnnuste", otsikko: "Ennuste", tyyppi: "pvm", vainVienti: true },
+  ],
+  maara: (db) => db.scheduleTask.count(),
+  async hae(db) {
+    const rivit = await db.scheduleTask.findMany({
+      include: { project: { include: { customer: true } } },
+      orderBy: [{ project: { name: "asc" } }, { seq: "asc" }, { code: "asc" }],
+    });
+    const projekteittain = new Map<string, typeof rivit>();
+    for (const r of rivit) projekteittain.set(r.projectId, [...(projekteittain.get(r.projectId) ?? []), r]);
+    const lasketut = new Map(Array.from(projekteittain.entries()).map(([id, t]) => [id, laskeProjektiaikataulu(t)]));
+    return rivit.map((r) => {
+      const l = lasketut.get(r.projectId)!.get(r.code);
+      return {
+        projekti: r.project.name,
+        asiakas: r.project.customer.name,
+        asiakasYtunnus: r.project.customer.businessId,
+        tunnus: r.code,
+        tehtava: r.title,
+        luokka: r.category,
+        urakoitsija: r.contractor,
+        paaryhma: r.mainGroup,
+        edeltaja: r.predecessorCode,
+        siirto: r.offsetDays,
+        miesvahvuus: r.crew,
+        valmiusaste: r.progress,
+        kiintea: r.fixedStart,
+        kesto: r.durationDays,
+        lAloitus: l?.aloitus ?? null,
+        lEnnuste: l?.ennuste ?? null,
+      };
+    });
+  },
+  async tuoRivi(a, tx, tapa) {
+    const projekti = await etsiProjekti(tx, a);
+    const tunnus = teksti(a, "tunnus")!.toUpperCase();
+    const edeltaja = teksti(a, "edeltaja")?.toUpperCase();
+    const olemassa = await tx.scheduleTask.findUnique({ where: { projectId_code: { projectId: projekti.id, code: tunnus } } });
+    // Excelin valmiusaste on osuus 0-1; järjestelmässä prosentti.
+    const v = a.valmiusaste as number | undefined;
+    const valmiusaste = v === undefined ? undefined : Math.round(v <= 1 ? v * 100 : v);
+    const data = {
+      title: teksti(a, "tehtava")!,
+      category: teksti(a, "luokka"),
+      contractor: teksti(a, "urakoitsija"),
+      mainGroup: a.paaryhma as number | undefined,
+      predecessorCode: edeltaja,
+      offsetDays: a.siirto as number | undefined,
+      crew: a.miesvahvuus as number | undefined,
+      progress: valmiusaste,
+      fixedStart: (a.kiintea as Date | undefined) ?? (!edeltaja ? (a.aloitus as Date | undefined) : undefined),
+      durationDays: a.kesto as number,
+    };
+    const tulos = await tallenna(
+      tapa,
+      olemassa,
+      async () => {
+        const max = await tx.scheduleTask.aggregate({ where: { projectId: projekti.id }, _max: { seq: true } });
+        return tx.scheduleTask.create({ data: { ...data, projectId: projekti.id, code: tunnus, seq: (max._max.seq ?? 0) + 1 } });
+      },
+      (o) => tx.scheduleTask.update({ where: { id: o.id }, data })
+    );
+    return { tulos, tunniste: `${projekti.name}: ${tunnus} ${data.title}` };
+  },
+};
+
+const projektitehtavat: Kohde = {
+  avain: "projektitehtavat",
+  nimi: "Projektien tehtävät",
+  osio: "Asiakkuuksien hallinta",
+  kuvaus: "Tehtäväluettelon omat tehtävät (hankintarivien lisäksi), esim. luvat ja katselmukset.",
+  tunnistus: "Tunniste, sitten projekti + tehtävä.",
+  sarakkeet: [
+    TUNNISTE,
+    PROJEKTI,
+    PROJEKTIN_ASIAKAS,
+    ASIAKKAAN_YTUNNUS,
+    { avain: "tehtava", otsikko: "Tehtävä", tyyppi: "teksti", pakollinen: true, aliakset: ["title"], esimerkki: "Rakennuslupahakemus" },
+    { avain: "alue", otsikko: "Alue", tyyppi: "valinta", valinnat: TEHTAVAN_ALUEET, esimerkki: "LUVITUS" },
+    { avain: "tila", otsikko: "Tila", tyyppi: "valinta", valinnat: TEHTAVAN_TILAT, esimerkki: "AVOIN" },
+    { avain: "vastuuhenkilo", otsikko: "Vastuuhenkilö", tyyppi: "teksti", aliakset: ["vastuu"], kuvaus: "Nimi tai sähköposti." },
+    { avain: "takaraja", otsikko: "Takaraja", tyyppi: "pvm", aliakset: ["due"] },
+    { avain: "aikataulutehtava", otsikko: "Aikataulutehtävä", tyyppi: "teksti", aliakset: ["tehtavatunnus"], kuvaus: "Takaraja on tämän tehtävän aloitus, jos Takaraja on tyhjä." },
+    { avain: "lisatiedot", otsikko: "Lisätiedot", tyyppi: "teksti", aliakset: ["notes", "huomiot"] },
+  ],
+  maara: (db) => db.projectTodo.count(),
+  async hae(db) {
+    const rivit = await db.projectTodo.findMany({
+      include: { assignee: true, project: { include: { customer: true } } },
+      orderBy: [{ project: { name: "asc" } }, { dueDate: "asc" }],
+    });
+    return rivit.map((t) => ({
+      id: t.id,
+      projekti: t.project.name,
+      asiakas: t.project.customer.name,
+      asiakasYtunnus: t.project.customer.businessId,
+      tehtava: t.title,
+      alue: t.area,
+      tila: t.status,
+      vastuuhenkilo: t.assignee?.name ?? null,
+      takaraja: t.dueDate,
+      aikataulutehtava: t.scheduleTaskCode,
+      lisatiedot: t.notes,
+    }));
+  },
+  async tuoRivi(a, tx, tapa) {
+    const projekti = await etsiProjekti(tx, a);
+    const otsikko = teksti(a, "tehtava")!;
+    let olemassa = await idlla(a, (id) => tx.projectTodo.findUnique({ where: { id } }));
+    olemassa ??= await tx.projectTodo.findFirst({ where: { projectId: projekti.id, title: eiKirjainkokoa(otsikko) } });
+    const vastuu = teksti(a, "vastuuhenkilo");
+    const data = {
+      projectId: projekti.id,
+      title: otsikko,
+      area: a.alue as Prisma.ProjectTodoCreateInput["area"],
+      status: a.tila as Prisma.ProjectTodoCreateInput["status"],
+      assigneeId: vastuu ? (await etsiHenkilo(tx, vastuu)).id : undefined,
+      dueDate: a.takaraja as Date | undefined,
+      scheduleTaskCode: teksti(a, "aikataulutehtava")?.toUpperCase(),
+      notes: teksti(a, "lisatiedot"),
+    };
+    const tulos = await tallenna(
+      tapa,
+      olemassa,
+      () => tx.projectTodo.create({ data: { ...data, id: teksti(a, "id") } }),
+      (o) => tx.projectTodo.update({ where: { id: o.id }, data })
+    );
+    return { tulos, tunniste: `${projekti.name}: ${otsikko}` };
+  },
+};
+
+const projektiorganisaatio: Kohde = {
+  avain: "projektiorganisaatio",
+  nimi: "Projektiorganisaatio",
+  osio: "Asiakkuuksien hallinta",
+  kuvaus: "Projektien vastuuhenkilöt rooleittain (esim. Suunnittelu/hankinta: Mikko).",
+  tunnistus: "Projekti + henkilö + rooli.",
+  sarakkeet: [
+    PROJEKTI,
+    PROJEKTIN_ASIAKAS,
+    ASIAKKAAN_YTUNNUS,
+    { avain: "rooli", otsikko: "Rooli", tyyppi: "teksti", pakollinen: true, esimerkki: "Suunnittelu/hankinta" },
+    { avain: "henkilo", otsikko: "Henkilö", tyyppi: "teksti", pakollinen: true, kuvaus: "Nimi tai sähköposti henkilörekisterissä.", esimerkki: "Maija Meikäläinen" },
+  ],
+  maara: (db) => db.projectMember.count(),
+  async hae(db) {
+    const rivit = await db.projectMember.findMany({
+      include: { user: true, project: { include: { customer: true } } },
+      orderBy: [{ project: { name: "asc" } }, { role: "asc" }],
+    });
+    return rivit.map((m) => ({
+      projekti: m.project.name,
+      asiakas: m.project.customer.name,
+      asiakasYtunnus: m.project.customer.businessId,
+      rooli: m.role,
+      henkilo: m.user.name,
+    }));
+  },
+  async tuoRivi(a, tx, tapa) {
+    const projekti = await etsiProjekti(tx, a);
+    const henkilo = await etsiHenkilo(tx, teksti(a, "henkilo")!);
+    const rooli = teksti(a, "rooli")!;
+    const avain = { projectId: projekti.id, userId: henkilo.id, role: rooli };
+    const olemassa = await tx.projectMember.findUnique({ where: { projectId_userId_role: avain } });
+    const tulos = await tallenna(
+      tapa,
+      olemassa,
+      () => tx.projectMember.create({ data: avain }),
+      async () => undefined
+    );
+    return { tulos: tulos === "paivitetty" ? "ohitettu" : tulos, tunniste: `${projekti.name}: ${rooli} ${henkilo.name}` };
+  },
+};
+
+const henkilot: Kohde = {
+  avain: "henkilot",
+  nimi: "Henkilöt",
+  osio: "Järjestelmä",
+  kuvaus: "Henkilörekisteri. Henkilöille jaetaan tehtäviä ja hankintoja.",
+  tunnistus: "Tunniste, sitten sähköposti, sitten nimi.",
+  sarakkeet: [
+    TUNNISTE,
+    { avain: "nimi", otsikko: "Nimi", tyyppi: "teksti", pakollinen: true, aliakset: ["name"], esimerkki: "Maija Meikäläinen" },
+    { avain: "sahkoposti", otsikko: "Sähköposti", tyyppi: "sahkoposti", aliakset: ["email"], esimerkki: "maija@wodule.fi" },
+    { avain: "puhelin", otsikko: "Puhelin", tyyppi: "teksti", aliakset: ["phone"] },
+    { avain: "rooli", otsikko: "Rooli", tyyppi: "valinta", valinnat: HENKILON_ROOLIT, esimerkki: "HANKINTA" },
+    { avain: "aktiivinen", otsikko: "Aktiivinen", tyyppi: "totuus", aliakset: ["active"], esimerkki: true },
+  ],
+  maara: (db) => db.user.count(),
+  async hae(db) {
+    const rivit = await db.user.findMany({ orderBy: { name: "asc" } });
+    return rivit.map((u) => ({ id: u.id, nimi: u.name, sahkoposti: u.email, puhelin: u.phone, rooli: u.role, aktiivinen: u.active }));
+  },
+  async tuoRivi(a, tx, tapa) {
+    const nimi = teksti(a, "nimi")!;
+    const email = teksti(a, "sahkoposti")?.toLowerCase();
+    let olemassa = await idlla(a, (id) => tx.user.findUnique({ where: { id } }));
+    if (!olemassa && email) olemassa = await tx.user.findUnique({ where: { email } });
+    if (!olemassa) {
+      const osumat = await tx.user.findMany({ where: { name: eiKirjainkokoa(nimi) } });
+      if (osumat.length > 1) throw new RiviVirhe(`Nimellä "${nimi}" löytyy useita henkilöitä. Lisää sähköposti.`);
+      olemassa = osumat[0] ?? null;
+    }
+    const data = {
+      name: nimi,
+      email,
+      phone: teksti(a, "puhelin"),
+      role: a.rooli as Prisma.UserCreateInput["role"],
+      active: a.aktiivinen as boolean | undefined,
+    };
+    const tulos = await tallenna(
+      tapa,
+      olemassa,
+      () => tx.user.create({ data: { ...data, id: teksti(a, "id") } }),
+      (o) => tx.user.update({ where: { id: o.id }, data })
+    );
+    return { tulos, tunniste: nimi };
   },
 };
 
@@ -1122,15 +1494,19 @@ const piirustukset: Kohde = {
 
 /** Kaikki kohteet riippuvuusjärjestyksessä. */
 export const KOHTEET: Kohde[] = [
+  henkilot,
   asiakkaat,
   nimikkeet,
   hinnastot,
   hinnastorivit,
   tarjoukset,
   projektit,
+  projektiorganisaatio,
   tilausvahvistukset,
+  aikataulutehtavat,
   virstanpylvaat,
   hankintarivit,
+  projektitehtavat,
   tuotantoaikataulu,
   reklamaatiot,
   tarkastuslistat,

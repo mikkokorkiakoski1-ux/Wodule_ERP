@@ -254,3 +254,21 @@ a.underline:hover {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent-text);
 }
+
+/* ---------- Projektiaikataulun Gantt ---------- */
+
+.gantt-tulossa {
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.gantt-kaynnissa {
+  background: var(--accent);
+}
+.gantt-myohassa {
+  background: var(--status-critical);
+}
+.gantt-valmis {
+  background: color-mix(in srgb, var(--status-good) 70%, transparent);
+}
+.rivi-korostettu {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}

@@ -32,6 +32,8 @@ export interface Sarake {
   pakollinen?: boolean;
   /** Sarake viedään mutta tuonnissa se ohitetaan (esim. lasketut arvot). */
   vainVienti?: boolean;
+  /** Sarake luetaan tuonnissa mutta sitä ei viedä (esim. Excelin x-merkinnät, joista johdetaan vaihe). */
+  vainTuonti?: boolean;
   kuvaus?: string;
   /** Muut hyväksytyt otsikot tuonnissa, esim. englanninkieliset. */
   aliakset?: string[];
