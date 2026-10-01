@@ -80,6 +80,10 @@ dopit, tuotantokansiot, työmääräimet ja piirustukset.
 - Tehtäväluettelo henkilöittäin, henkilörekisteri (`/henkilot`) ja projektiorganisaatio.
 - Projektin Excelin voi tuoda suoraan projektin sivulta.
 
+Seuraavaksi: kokeile uusia projektisivuja selaimessa oikealla projektilla
+(tehtävien jako henkilöille, vaiheiden siirto, Excel-tuonti) ja korjaa
+havainnot ennen uusia ominaisuuksia.
+
 Kaikki viisi osiota ovat käytettävissä (lisäys ja listaus tietokannasta), mutta
 moni yksityiskohta on vielä auki. Ehdotettu järjestys:
 
