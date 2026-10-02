@@ -99,3 +99,4 @@ Tuotannon ohjaus on oma osionsa: jokaisella projektilla on Sharepoint-tuotantoka
 - Tiedostot (`QaDocument`, `Drawing`, tarjousten liitteet) ovat pelkkiä `fileUrl`-tekstikenttiä. `ProductionFolder.sharepointUrl` on pelkkä linkki; Microsoft Graph -integraatiota ei ole.
 - `TuotantoaikatauluClient.tsx`:n Gantt on yksinkertaistettu: ei kuukausi- tai viikko-otsikoita, ja tooltipit ovat pelkkiä `title`-attribuutteja.
 - Validointityyli on epäyhtenäinen: rajapintareiteillä jaetut skeemat `validation.ts`:ssä, Server Actionseissa inline-zod.
+- Projektin Excelin uudelleentuonti asettaa hankintojen vaiheet Excelin x-merkintöjen mukaisiksi, joten järjestelmässä eteenpäin siirretyt vaiheet voivat palata taaksepäin. Ks. README:n avoin kysymys.

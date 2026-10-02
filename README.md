@@ -84,6 +84,12 @@ Seuraavaksi: kokeile uusia projektisivuja selaimessa oikealla projektilla
 (tehtävien jako henkilöille, vaiheiden siirto, Excel-tuonti) ja korjaa
 havainnot ennen uusia ominaisuuksia.
 
+Avoin kysymys (2.10.2026): kun projektin Excel tuodaan uudelleen samaan
+projektiin, Excelin x-merkinnät (tarjous kysytty, sopimus valmis) asettavat
+hankintojen vaiheet Excelin mukaisiksi. Järjestelmässä eteenpäin siirretyt
+vaiheet voivat siis palata taaksepäin. Vaihtoehto on muuttaa tuontia niin,
+ettei se koskaan siirrä vaihetta taaksepäin. Päätös on vielä tekemättä.
+
 Kaikki viisi osiota ovat käytettävissä (lisäys ja listaus tietokannasta), mutta
 moni yksityiskohta on vielä auki. Ehdotettu järjestys:
 
