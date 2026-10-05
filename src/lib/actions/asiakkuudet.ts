@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -59,6 +60,34 @@ export async function createOffer(formData: FormData) {
   });
 
   revalidatePath("/asiakkuuksien-hallinta/tarjoukset");
+}
+
+// "Muuta projektiksi": luo tarjouksesta projektin (sama asiakas, nimi = otsikko),
+// merkitsee tarjouksen hyväksytyksi ja siirtää käyttäjän Projektit-sivulle.
+// Tarjous jää historiaan, ja Project.offerId:n @unique estää tuplamuunnoksen.
+export async function convertOfferToProject(formData: FormData) {
+  const offerId = z.string().cuid().parse(formData.get("offerId"));
+
+  await prisma.$transaction(async (tx) => {
+    const offer = await tx.offer.findUniqueOrThrow({
+      where: { id: offerId },
+      include: { project: true },
+    });
+    if (offer.project) return;
+
+    await tx.project.create({
+      data: {
+        customerId: offer.customerId,
+        offerId: offer.id,
+        name: offer.title,
+      },
+    });
+    await tx.offer.update({ where: { id: offer.id }, data: { status: "HYVAKSYTTY" } });
+  });
+
+  revalidatePath("/asiakkuuksien-hallinta/tarjoukset");
+  revalidatePath("/asiakkuuksien-hallinta/projektit");
+  redirect("/asiakkuuksien-hallinta/projektit");
 }
 
 const projectInput = z.object({

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { createOffer } from "@/lib/actions/asiakkuudet";
+import { convertOfferToProject, createOffer } from "@/lib/actions/asiakkuudet";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +12,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function TarjouksetPage() {
   const [offers, customers] = await Promise.all([
+    // Projektiksi muutetut tarjoukset näkyvät Projektit-sivulla, eivät täällä.
     prisma.offer.findMany({
+      where: { project: { is: null } },
       orderBy: { createdAt: "desc" },
-      include: { customer: true, project: true },
+      include: { customer: true },
     }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -58,7 +60,7 @@ export default async function TarjouksetPage() {
               <th className="p-3">Tila</th>
               <th className="p-3 text-right">Summa</th>
               <th className="p-3">Voimassa</th>
-              <th className="p-3">Projekti</th>
+              <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -75,7 +77,12 @@ export default async function TarjouksetPage() {
                 <td className="p-3 text-ink-2">
                   {o.validUntil ? new Date(o.validUntil).toLocaleDateString("fi-FI") : "–"}
                 </td>
-                <td className="p-3 text-ink-2">{o.project ? o.project.name : "–"}</td>
+                <td className="p-3 text-right">
+                  <form action={convertOfferToProject}>
+                    <input type="hidden" name="offerId" value={o.id} />
+                    <button className="btn btn-secondary btn-sm">Muuta projektiksi</button>
+                  </form>
+                </td>
               </tr>
             ))}
             {offers.length === 0 && (
