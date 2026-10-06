@@ -20,7 +20,7 @@ npm run db:generate           # npm 11 ohittaa Prisman asennusskriptin
 cp .env.example .env          # oletusarvot toimivat suoraan docker-composen kanssa
 docker compose up -d          # nostaa Postgresin porttiin 5432
 npm run db:migrate            # luo taulut (kysyy migraation nimen ensimmäisellä kerralla)
-npx prisma db seed            # täyttää esimerkkidatalla (mm. tuttu 11 rivin tuotantoaikataulu)
+npm run db:seed               # täyttää esimerkkidatalla (mm. tuttu 11 rivin tuotantoaikataulu)
 npm run dev                   # http://localhost:3000
 ```
 

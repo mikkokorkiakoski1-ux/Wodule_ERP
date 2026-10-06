@@ -13,7 +13,7 @@ npm install                 # npm 11 ohittaa asennusskriptit: aja sen jälkeen n
 cp .env.example .env        # DATABASE_URL vastaa docker-composen oletuksia
 docker compose up -d        # Postgres 16, localhost:5432 (erp/erp/erp)
 npm run db:migrate          # prisma migrate dev
-npx prisma db seed          # tsx prisma/seed.ts (mm. 11 rivin tuotantoaikataulu)
+npm run db:seed             # prisma db seed -> tsx prisma/seed.ts (mm. 11 rivin tuotantoaikataulu)
 npm run dev                 # http://localhost:3000
 
 npm run build
@@ -27,14 +27,13 @@ npm test                    # vitest run (kaikki testit)
 npx vitest run src/lib/production-schedule.test.ts   # yksi tiedosto
 ```
 
-- **Seed: käytä `npx prisma db seed`, älä `npm run db:seed`.** `npm run db:seed` ajaa `tsx`:n suoraan, eikä se lue `.env`-tiedostoa, joten ajo kaatuu virheeseen `Environment variable not found: DATABASE_URL`. Prisman CLI lataa `.env`:n itse.
 - **Postgres ilman Dockeria (Windows).** Jos Dockeria tai WSL:ää ei ole, asenna Postgres suoraan Windows-palveluksi ja luo samat tunnukset kuin docker-composessa:
   ```powershell
   winget install --id PostgreSQL.PostgreSQL.16 -e --override "--mode unattended --unattendedmodeui none --superpassword postgres --serverport 5432 --disable-components stackbuilder,pgAdmin"
   & "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -h localhost -c "CREATE ROLE erp WITH LOGIN PASSWORD 'erp' CREATEDB;"
   & "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -h localhost -c "CREATE DATABASE erp OWNER erp;"
   ```
-  Tämän jälkeen `.env.example`:n `DATABASE_URL` toimii sellaisenaan. Ensimmäinen käyttöönotto ei-interaktiivisesti: `npx prisma migrate deploy` ja sitten `npx prisma db seed`.
+  Tämän jälkeen `.env.example`:n `DATABASE_URL` toimii sellaisenaan. Ensimmäinen käyttöönotto ei-interaktiivisesti: `npx prisma migrate deploy` ja sitten `npm run db:seed`.
 - **Migraatiot ilman interaktiivista komentoa.** `prisma migrate dev` ei toimi ei-interaktiivisessa ympäristössä (esim. Claude Code). Kun tietokanta on ajan tasalla edellisestä migraatiosta, luo uusi näin:
   ```bash
   mkdir prisma/migrations/<AAAAKKPPTTMMSS>_<nimi>
