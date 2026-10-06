@@ -15,7 +15,7 @@ export default async function ProjektitPage() {
   const [projects, customers, offers] = await Promise.all([
     prisma.project.findMany({
       orderBy: { createdAt: "desc" },
-      include: { customer: true },
+      include: { customer: true, _count: { select: { buildings: true } } },
     }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
     prisma.offer.findMany({ where: { project: { is: null } }, orderBy: { createdAt: "desc" } }),
@@ -26,8 +26,8 @@ export default async function ProjektitPage() {
       <div>
         <h1 className="text-2xl font-semibold">Projektit</h1>
         <p className="text-ink-2 text-sm mt-1">
-          Asiakkuuksien hallinta &raquo; Projektit. Ks. myös{" "}
-          <Link className="underline" href="/asiakkuuksien-hallinta/projektit/tuotantoaikataulu">
+          Projektit ovat ERP:n pääobjekti: rakennukset, aikataulu, hankinnat ja tuotanto kulkevat projektin kautta. Ks. myös{" "}
+          <Link className="underline" href="/projektit/tuotantoaikataulu">
             Tuotantoaikataulu projektit
           </Link>
           .
@@ -76,6 +76,7 @@ export default async function ProjektitPage() {
               <th className="p-3">Projekti</th>
               <th className="p-3">Asiakas</th>
               <th className="p-3">Tila</th>
+              <th className="p-3 text-right">Rakennuksia</th>
               <th className="p-3">Luvattu toimitus</th>
               <th className="p-3"></th>
             </tr>
@@ -88,6 +89,7 @@ export default async function ProjektitPage() {
                 <td className="p-3">
                   <span className="badge muted">{STATUS_LABEL[p.status]}</span>
                 </td>
+                <td className="p-3 text-right font-mono">{p._count.buildings}</td>
                 <td className="p-3 text-ink-2">
                   {p.promisedDeliveryDate
                     ? new Date(p.promisedDeliveryDate).toLocaleDateString("fi-FI")
@@ -95,7 +97,7 @@ export default async function ProjektitPage() {
                 </td>
                 <td className="p-3 text-right">
                   <Link
-                    href={`/asiakkuuksien-hallinta/projektit/${p.id}`}
+                    href={`/projektit/${p.id}`}
                     className="underline text-sm"
                   >
                     Avaa (Yhteenveto)
@@ -105,7 +107,7 @@ export default async function ProjektitPage() {
             ))}
             {projects.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-6 text-center text-ink-muted">
+                <td colSpan={6} className="p-6 text-center text-ink-muted">
                   Ei vielä projekteja.
                 </td>
               </tr>

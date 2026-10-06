@@ -4,11 +4,20 @@
 // pääosiota. Katso docs/ARKKITEHTUURI.md kaavion ja mallien välisestä
 // vastaavuustaulukosta.
 //
-//   1. Asiakkuuksien hallinta  -> Customer, Offer, Project, OrderConfirmation,
-//                                 ProcurementPlan, ProcurementItem, ScheduleTask,
-//                                 ProjectMilestone, ProjectTodo, ProjectMember,
+//   1. Asiakkuuksien hallinta  -> Customer, Offer
+//      Projektit (pääobjekti)  -> Project, Building, BuildingPart, ProductionElement,
+//                                 OrderConfirmation, ProcurementPlan, ProcurementItem,
+//                                 ScheduleTask, ProjectMilestone, ProjectTodo, ProjectMember,
 //                                 ProductionScheduleItem ("Tuotantoaikataulu projektit")
-//   2. Tuotehallinta           -> Product, PriceList, PriceListItem
+//   2. Tuotehallinta           -> Product, PriceList, PriceListItem,
+//                                 StructureType, StructureMaterial (rakenneosakirjasto)
+//
+// Talotehtaan runko: Projekti -> Rakennus -> Määräluettelo (BuildingPart:
+// rakenneosa × määrä) ja Elementti. Rakenneosan (StructureType: rakenne tai
+// ostonimike) materiaaliluettelosta ja työtuntinormista
+// johdetaan tarjouksen omakustannus, hankintojen materiaalitarve ja
+// tuntimenekki. Reklamaatiot, tarkastukset ja piirustukset kohdistetaan
+// rakennukseen tai elementtiin.
 //   3. Reklamaatiot            -> Complaint
 //   4. Laadunvarmistus         -> QaChecklist, QaChecklistItem, QaDocument
 //   5. Tuotannon ohjaus        -> ProductionFolder, WorkOrder, Drawing
@@ -67,19 +76,19 @@ model User {
 // ============================================================
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  businessId String? // Y-tunnus
+  id           String   @id @default(cuid())
+  name         String
+  businessId   String? // Y-tunnus
   contactName  String?
   contactEmail String?
   contactPhone String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  offers               Offer[]
-  projects             Project[]
+  offers                  Offer[]
+  projects                Project[]
   productionScheduleItems ProductionScheduleItem[]
-  complaints           Complaint[]
+  complaints              Complaint[]
 
   @@map("customers")
 }
@@ -93,17 +102,20 @@ enum OfferStatus {
 
 // Tarjoukset
 model Offer {
-  id         String      @id @default(cuid())
-  customerId String
-  customer   Customer    @relation(fields: [customerId], references: [id])
-  title      String
-  status     OfferStatus @default(LUONNOS)
+  id          String      @id @default(cuid())
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  title       String
+  status      OfferStatus @default(LUONNOS)
   amountCents Int?
-  validUntil DateTime?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  validUntil  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  project Project?
+  project   Project?
+  // Tarjouksen sisältö: rakennukset ja niiden määräluettelot. "Muuta
+  // projektiksi" liittää samat rakennukset projektiin (Building.projectId).
+  buildings Building[]
 
   @@map("offers")
 }
@@ -117,28 +129,30 @@ enum ProjectStatus {
 
 // Projektit (kaavion "Projekti 1", "Projekti 2", ... ovat tämän mallin rivejä)
 model Project {
-  id         String        @id @default(cuid())
-  customerId String
-  customer   Customer      @relation(fields: [customerId], references: [id])
-  offerId    String?       @unique
-  offer      Offer?        @relation(fields: [offerId], references: [id])
-  name       String
-  status     ProjectStatus @default(SUUNNITTELU)
+  id                   String        @id @default(cuid())
+  customerId           String
+  customer             Customer      @relation(fields: [customerId], references: [id])
+  offerId              String?       @unique
+  offer                Offer?        @relation(fields: [offerId], references: [id])
+  name                 String
+  status               ProjectStatus @default(SUUNNITTELU)
   // Yhteenvetosivu: yhteenveto koostetaan näistä kentistä + relaatioista,
   // ei erillistä taulua.
-  description String?
+  description          String?
   promisedDeliveryDate DateTime?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  orderConfirmation OrderConfirmation?
-  procurementPlan   ProcurementPlan?
-  milestones        ProjectMilestone[]
-  scheduleTasks     ScheduleTask[]
-  todos             ProjectTodo[]
-  members           ProjectMember[]
+  orderConfirmation       OrderConfirmation?
+  procurementPlan         ProcurementPlan?
+  milestones              ProjectMilestone[]
+  scheduleTasks           ScheduleTask[]
+  todos                   ProjectTodo[]
+  members                 ProjectMember[]
   productionScheduleItems ProductionScheduleItem[]
-  productionFolder  ProductionFolder?
+  productionFolder        ProductionFolder?
+  buildings               Building[]
+  complaints              Complaint[]
 
   @@map("projects")
 }
@@ -218,10 +232,14 @@ model ProcurementItem {
   notes             String?
   assigneeId        String?
   assignee          User?            @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  // Nimike, jos rivi on luotu rakenteiden materiaalitarpeesta (tai liitetty käsin).
+  productId         String?
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@index([assigneeId])
+  @@index([productId])
   @@map("procurement_items")
 }
 
@@ -335,18 +353,22 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  priceListItems PriceListItem[]
+  priceListItems     PriceListItem[]
+  structureMaterials StructureMaterial[]
+  procurementItems   ProcurementItem[]
 
   @@map("products")
 }
 
 // Hinnastot
 model PriceList {
-  id        String   @id @default(cuid())
-  name      String
-  validFrom DateTime @default(now())
-  validTo   DateTime?
-  createdAt DateTime @default(now())
+  id             String    @id @default(cuid())
+  name           String
+  validFrom      DateTime  @default(now())
+  validTo        DateTime?
+  // Tehtaan työtunnin hinta rakenteiden kustannuslaskentaan (sentteinä).
+  laborHourCents Int?
+  createdAt      DateTime  @default(now())
 
   items PriceListItem[]
 
@@ -354,13 +376,13 @@ model PriceList {
 }
 
 model PriceListItem {
-  id          String    @id @default(cuid())
-  priceListId String
-  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product   @relation(fields: [productId], references: [id])
+  id             String    @id @default(cuid())
+  priceListId    String
+  priceList      PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id])
   unitPriceCents Int
-  currency    String    @default("EUR")
+  currency       String    @default("EUR")
 
   @@unique([priceListId, productId])
   @@map("price_list_items")
@@ -378,15 +400,26 @@ enum ComplaintStatus {
 }
 
 model Complaint {
-  id          String          @id @default(cuid())
+  id          String             @id @default(cuid())
   customerId  String
-  customer    Customer        @relation(fields: [customerId], references: [id])
+  customer    Customer           @relation(fields: [customerId], references: [id])
   title       String
   description String
-  status      ComplaintStatus @default(AVOIN)
-  createdAt   DateTime        @default(now())
+  status      ComplaintStatus    @default(AVOIN)
+  createdAt   DateTime           @default(now())
   resolvedAt  DateTime?
+  // Kohdistus: mihin projektiin, rakennukseen ja elementtiin reklamaatio
+  // liittyy. Kaikki vapaaehtoisia, koska reklamaatio voi tulla ennen kuin
+  // kohde on tiedossa. Tarkin annettu taso ratkaisee.
+  projectId   String?
+  project     Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  buildingId  String?
+  building    Building?          @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  elementId   String?
+  element     ProductionElement? @relation(fields: [elementId], references: [id], onDelete: SetNull)
 
+  @@index([projectId])
+  @@index([buildingId])
   @@map("complaints")
 }
 
@@ -394,14 +427,22 @@ model Complaint {
 // 4. Laadunvarmistus
 // ============================================================
 
-// Tarkastuslistat
+// Tarkastuslistat. Pohja (isTemplate) on vakiolista, josta kopioidaan
+// tarkastettava lista rakennukselle tai elementille. Pohjan kohtiin ei
+// kirjata tuloksia.
 model QaChecklist {
-  id        String   @id @default(cuid())
-  title     String
-  createdAt DateTime @default(now())
+  id         String             @id @default(cuid())
+  title      String
+  isTemplate Boolean            @default(false)
+  buildingId String?
+  building   Building?          @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  elementId  String?
+  element    ProductionElement? @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  createdAt  DateTime           @default(now())
 
   items QaChecklistItem[]
 
+  @@index([buildingId])
   @@map("qa_checklists")
 }
 
@@ -419,11 +460,14 @@ model QaChecklistItem {
 
 // Dopit (dokumentit)
 model QaDocument {
-  id        String   @id @default(cuid())
-  title     String
-  fileUrl   String?
-  category  String?
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  title      String
+  fileUrl    String?
+  category   String?
+  // Rakennuskohtainen dokumentti (esim. DoP tai luovutusaineisto); tyhjä = yleinen.
+  buildingId String?
+  building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
 
   @@map("qa_documents")
 }
@@ -437,25 +481,28 @@ model QaDocument {
 // Tämä EI ole Tuotannon ohjaus -osiota, vaan kaavion "Tuotantoaikataulu
 // projektit" -solmu Projektit-haaran alla.
 model ProductionScheduleItem {
-  id             String   @id @default(cuid())
-  seq            Int
-  customerId     String?
-  customer       Customer? @relation(fields: [customerId], references: [id])
-  projectId      String?
-  project        Project?  @relation(fields: [projectId], references: [id])
-  tilaaja        String   // vapaateksti-nimi, jos ei linkitetä Customer-tauluun
-  projekti       String
-  rakennuksia    Int      @default(1)
-  luvattu        DateTime?
-  aloitus        DateTime? // kiinteä aloitus (vain ketjun ensimmäisellä rivillä pakollinen)
-  siirto         Int      @default(0) // kalenteripäivää edellisen rivin ennusteesta
-  tuntimenekki   Float
-  tyontekijoita  Int
-  tyopisteita    Int      @default(1)
-  kesto          Int      // työpäivää - AINOA aikataulua ohjaava kestoarvo
-  valmiusaste    Int?     // 0-100, null = ei kirjattu
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(cuid())
+  seq           Int
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id])
+  // Rakennus, jota rivi valmistaa. Ei vaikuta laskentaan.
+  buildingId    String?
+  building      Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  tilaaja       String // vapaateksti-nimi, jos ei linkitetä Customer-tauluun
+  projekti      String
+  rakennuksia   Int       @default(1)
+  luvattu       DateTime?
+  aloitus       DateTime? // kiinteä aloitus (vain ketjun ensimmäisellä rivillä pakollinen)
+  siirto        Int       @default(0) // kalenteripäivää edellisen rivin ennusteesta
+  tuntimenekki  Float
+  tyontekijoita Int
+  tyopisteita   Int       @default(1)
+  kesto         Int // työpäivää - AINOA aikataulua ohjaava kestoarvo
+  valmiusaste   Int? // 0-100, null = ei kirjattu
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([seq])
   @@map("production_schedule_items")
@@ -467,9 +514,9 @@ model ProductionScheduleItem {
 
 // Sharepoint tuotantokansio: yksi per projekti, ulkoinen synkronointipiste.
 model ProductionFolder {
-  id            String   @id @default(cuid())
-  projectId     String   @unique
-  project       Project  @relation(fields: [projectId], references: [id])
+  id            String    @id @default(cuid())
+  projectId     String    @unique
+  project       Project   @relation(fields: [projectId], references: [id])
   sharepointUrl String?
   syncedAt      DateTime?
 
@@ -481,29 +528,233 @@ model ProductionFolder {
 
 // Työmääräimet
 model WorkOrder {
-  id                 String           @id @default(cuid())
+  id                 String             @id @default(cuid())
   productionFolderId String
-  productionFolder   ProductionFolder @relation(fields: [productionFolderId], references: [id], onDelete: Cascade)
+  productionFolder   ProductionFolder   @relation(fields: [productionFolderId], references: [id], onDelete: Cascade)
   number             String
   description        String?
   hoursEstimated     Float?
   hoursActual        Float?
-  createdAt          DateTime         @default(now())
+  buildingId         String?
+  building           Building?          @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  elementId          String?
+  element            ProductionElement? @relation(fields: [elementId], references: [id], onDelete: SetNull)
+  createdAt          DateTime           @default(now())
 
   @@map("work_orders")
 }
 
 // Piirustukset
 model Drawing {
-  id                 String           @id @default(cuid())
+  id                 String             @id @default(cuid())
   productionFolderId String
-  productionFolder   ProductionFolder @relation(fields: [productionFolderId], references: [id], onDelete: Cascade)
+  productionFolder   ProductionFolder   @relation(fields: [productionFolderId], references: [id], onDelete: Cascade)
   title              String
-  revision           String           @default("A")
+  revision           String             @default("A")
   fileUrl            String?
-  uploadedAt         DateTime         @default(now())
+  buildingId         String?
+  building           Building?          @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  elementId          String?
+  element            ProductionElement? @relation(fields: [elementId], references: [id], onDelete: SetNull)
+  uploadedAt         DateTime           @default(now())
 
   @@map("drawings")
+}
+
+// ============================================================
+// 2b. Rakenneosakirjasto (Tuotehallinta > Rakenneosat)
+//
+// Käyttöliittymässä "rakenneosa" = StructureType ja rakennuksen
+// "määräluettelon rivi" = BuildingPart. Mallien nimet ovat historiallisia.
+//
+// Rakenneosa on joko talotehtaan oma vakiorakenne (kind = RAKENNE, esim.
+// "US-1 ulkoseinä 200 mm", materiaaliluettelo) tai valmiina ostettava
+// nimike (kind = OSTONIMIKE, esim. ilmalämpöpumppu tai ikkuna: täsmälleen
+// yksi materiaalirivi, nimike × 1). Jokainen rakennus kootaan näistä:
+// määräluettelon rivi = rakenneosa × määrä. Materiaaliluettelosta ja
+// työtuntinormista lasketaan materiaalitarve, tuntimenekki ja omakustannus
+// (src/lib/rakenteet.ts), ja ostonimikkeet päätyvät materiaalitarpeen
+// kautta hankintasuunnitelmaan.
+// ============================================================
+
+enum StructureCategory {
+  ULKOSEINA
+  VALISEINA
+  ALAPOHJA
+  VALIPOHJA
+  YLAPOHJA
+  KATTO
+  TILAELEMENTTI
+  IKKUNA
+  OVI
+  TEKNIIKKA
+  KALUSTE
+  MUU
+}
+
+enum StructureKind {
+  RAKENNE // oma valmistus: materiaaliluettelo + työtunnit
+  OSTONIMIKE // ostetaan valmiina: yksi nimike, työtunnit = asennus/käsittely
+}
+
+model StructureType {
+  id                String            @id @default(cuid())
+  code              String            @unique // esim. "US-1"
+  name              String
+  kind              StructureKind     @default(RAKENNE)
+  category          StructureCategory @default(MUU)
+  unit              String            @default("m2") // m2, jm, kpl
+  description       String?
+  // Työtuntinormi: tehtaan työtunteja per yksikkö.
+  laborHoursPerUnit Float             @default(0)
+  // BIM-mallin tyyppinimi (esim. IFC-tyypin nimi tai Tekla/Revit-tyyppi),
+  // jolla mallin määräluettelon rivi tunnistetaan tähän rakenneosaan.
+  bimTypeName       String?           @unique
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  materials StructureMaterial[]
+  parts     BuildingPart[]
+  elements  ProductionElement[]
+
+  @@map("structure_types")
+}
+
+// Rakenneosan materiaaliluettelo: nimike × menekki per rakenneosan yksikkö.
+// Ostonimikkeellä täsmälleen yksi rivi: nimike × 1.
+model StructureMaterial {
+  id              String        @id @default(cuid())
+  structureTypeId String
+  structureType   StructureType @relation(fields: [structureTypeId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantityPerUnit Float // nimikkeen yksikköä per rakenneosan yksikkö
+  wastePct        Float         @default(0) // hukka-%
+  seq             Int           @default(0)
+  notes           String?
+
+  @@unique([structureTypeId, productId])
+  @@map("structure_materials")
+}
+
+// ============================================================
+// 1c. Rakennukset (Projektit > projekti > Rakennukset)
+//
+// Projektin toimitettava kohde. Rakennus syntyy tarjoukselle (offerId) ja
+// liitetään projektiin, kun tarjous muutetaan projektiksi (projectId).
+// Sen jälkeen offerId jää historiaksi. Tuotanto, laadunvarmistus,
+// reklamaatiot ja piirustukset kohdistetaan rakennukseen tai sen
+// elementtiin.
+// ============================================================
+
+enum BuildingStatus {
+  SUUNNITTELU
+  VALMISTUKSESSA
+  TOIMITETTU
+  VALMIS
+}
+
+model Building {
+  id              String         @id @default(cuid())
+  projectId       String?
+  project         Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  offerId         String?
+  offer           Offer?         @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  code            String // tunnus projektin sisällä, esim. "A" tai "MOD1"
+  name            String?
+  buildingType    String? // vapaa kuvaus, esim. "Paritalo", "Majoitusmoduuli"
+  grossAreaM2     Float?
+  address         String?
+  status          BuildingStatus @default(SUUNNITTELU)
+  plannedDelivery DateTime?
+  deliveredAt     DateTime?
+  // BIM: linkki malliin (IFC-tiedosto, Trimble Connect, Dalux tms.) ja
+  // IfcBuilding-olion GlobalId, jolla mallin tiedot kohdistetaan rakennukseen.
+  bimModelUrl     String?
+  bimGuid         String?
+  seq             Int            @default(0)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  parts                   BuildingPart[]
+  elements                ProductionElement[]
+  complaints              Complaint[]
+  checklists              QaChecklist[]
+  documents               QaDocument[]
+  workOrders              WorkOrder[]
+  drawings                Drawing[]
+  productionScheduleItems ProductionScheduleItem[]
+
+  @@unique([projectId, code])
+  @@unique([offerId, code])
+  @@map("buildings")
+}
+
+enum QuantitySource {
+  KASIN
+  BIM
+}
+
+// Määräluettelon rivi: rakennuksessa on tätä rakenneosaa tämä määrä. Määrät
+// syötetään käsin tai tuodaan BIM-mallin määräluettelosta (source = BIM,
+// bimGuid = mallin olion GlobalId, jolla uusintatuonti päivittää rivin).
+model BuildingPart {
+  id              String         @id @default(cuid())
+  buildingId      String
+  building        Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  structureTypeId String
+  structureType   StructureType  @relation(fields: [structureTypeId], references: [id])
+  quantity        Float
+  location        String? // sijainti, esim. "1. krs" tai "Pääty A"
+  source          QuantitySource @default(KASIN)
+  bimGuid         String?
+  seq             Int            @default(0)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([buildingId, bimGuid])
+  @@index([buildingId])
+  @@map("building_parts")
+}
+
+enum ElementStatus {
+  SUUNNITTEILLA
+  VALMISTUKSESSA
+  VALMIS
+  TOIMITETTU
+  ASENNETTU
+}
+
+// Elementti tai tilaelementti (moduuli): tehtaan valmistama ja toimittama
+// yksikkö, jolla on oma tunnus. Työmääräimet, piirustukset, tarkastukset ja
+// reklamaatiot voi kohdistaa elementtiin.
+model ProductionElement {
+  id              String         @id @default(cuid())
+  buildingId      String
+  building        Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  code            String // elementtitunnus, esim. "A-US-01"
+  structureTypeId String?
+  structureType   StructureType? @relation(fields: [structureTypeId], references: [id], onDelete: SetNull)
+  description     String?
+  quantity        Float? // elementin koko rakenneosan yksikössä (esim. m2)
+  status          ElementStatus  @default(SUUNNITTEILLA)
+  plannedDate     DateTime?
+  completedAt     DateTime?
+  bimGuid         String?
+  seq             Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  complaints Complaint[]
+  checklists QaChecklist[]
+  workOrders WorkOrder[]
+  drawings   Drawing[]
+
+  @@unique([buildingId, code])
+  @@map("production_elements")
 }
 
 // ============================================================

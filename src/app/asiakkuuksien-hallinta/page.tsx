@@ -20,11 +20,11 @@ export default async function AsiakkuuksienHallintaPage() {
             Tarjoukset
           </Link>
           ,{" "}
-          <Link className="underline" href="/asiakkuuksien-hallinta/projektit">
+          <Link className="underline" href="/projektit">
             Projektit
           </Link>{" "}
           ja{" "}
-          <Link className="underline" href="/asiakkuuksien-hallinta/projektit/tuotantoaikataulu">
+          <Link className="underline" href="/projektit/tuotantoaikataulu">
             Tuotantoaikataulu projektit
           </Link>
           .

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { createPriceList, addPriceListItem } from "@/lib/actions/tuotehallinta";
+import { createPriceList, addPriceListItem, setLaborRate } from "@/lib/actions/tuotehallinta";
+import { valitseHinnasto } from "@/lib/rakenteet";
+import { euro, pvm } from "@/lib/muotoilu";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +13,17 @@ export default async function HinnastotPage() {
     }),
     prisma.product.findMany({ orderBy: { code: "asc" } }),
   ]);
+  const laskennassa = valitseHinnasto(priceLists, new Date());
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <p className="text-xs text-ink-muted font-mono uppercase">Tuotehallinta &raquo; Hinnastot</p>
         <h1 className="text-2xl font-semibold">Hinnastot</h1>
+        <p className="text-ink-2 text-sm mt-1 max-w-3xl">
+          Rakenneosien omakustannus (rakenneosat, tarjoukset, projektit) lasketaan uusimmalla voimassa olevalla hinnastolla:
+          nimikkeiden yksikköhinnat ja hinnaston tuntihinta.
+        </p>
       </div>
 
       <div className="card p-5">
@@ -24,6 +31,7 @@ export default async function HinnastotPage() {
         <form action={createPriceList} className="grid grid-cols-2 gap-3">
           <input name="name" placeholder="Nimi" required className="field" />
           <input name="validFrom" type="date" className="field" />
+          <input name="laborHourEuros" type="number" step="0.01" placeholder="Tuntihinta (€/h)" className="field" />
           <button className="justify-self-start btn btn-primary">
             Lisää hinnasto
           </button>
@@ -33,7 +41,31 @@ export default async function HinnastotPage() {
       <div className="flex flex-col gap-4">
         {priceLists.map((pl) => (
           <div key={pl.id} className="card p-5">
-            <h3 className="font-semibold mb-3">{pl.name}</h3>
+            <div className="flex items-start justify-between gap-4 mb-3">
+              <div>
+                <h3 className="font-semibold">
+                  {pl.name}
+                  {laskennassa?.id === pl.id && <span className="badge ok ml-2">Laskennassa</span>}
+                </h3>
+                <div className="text-xs text-ink-2 mt-0.5">
+                  Voimassa {pvm(pl.validFrom)} – {pl.validTo ? pvm(pl.validTo) : "toistaiseksi"} · tuntihinta{" "}
+                  {pl.laborHourCents === null ? "puuttuu" : `${euro(pl.laborHourCents)}/h`}
+                </div>
+              </div>
+              <form action={setLaborRate} className="flex gap-2 items-center shrink-0">
+                <input type="hidden" name="priceListId" value={pl.id} />
+                <input
+                  name="laborHourEuros"
+                  type="number"
+                  step="0.01"
+                  defaultValue={pl.laborHourCents === null ? "" : pl.laborHourCents / 100}
+                  placeholder="€/h"
+                  aria-label="Tuntihinta (€/h)"
+                  className="field w-28"
+                />
+                <button className="btn btn-ghost btn-sm">Aseta tuntihinta</button>
+              </form>
+            </div>
 
             <table className="w-full text-sm mb-3">
               <thead>

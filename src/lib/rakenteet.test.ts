@@ -1,0 +1,157 @@
+import { describe, expect, it } from "vitest";
+import {
+  laskeKustannus,
+  laskeMateriaalitarve,
+  laskeTuntimenekki,
+  valitseHinnasto,
+  yksikkokustannus,
+  type Maararivi,
+  type Rakenneosa,
+} from "./rakenteet";
+
+const runko = { id: "p1", code: "RUNKO-48x198", name: "Runkopuu 48x198", unit: "jm" };
+const villa = { id: "p2", code: "VILLA-200", name: "Mineraalivilla 200", unit: "m2" };
+const levy = { id: "p3", code: "KIPSI-13", name: "Kipsilevy 13", unit: "m2" };
+
+const ulkoseina: Rakenneosa = {
+  id: "s1",
+  code: "US-1",
+  name: "Ulkoseinä 200",
+  unit: "m2",
+  laborHoursPerUnit: 0.8,
+  materials: [
+    { productId: "p1", quantityPerUnit: 2.5, wastePct: 10, product: runko },
+    { productId: "p2", quantityPerUnit: 1, wastePct: 5, product: villa },
+    { productId: "p3", quantityPerUnit: 1, wastePct: 0, product: levy },
+  ],
+};
+
+const valiseina: Rakenneosa = {
+  id: "s2",
+  code: "VS-1",
+  name: "Väliseinä",
+  unit: "m2",
+  laborHoursPerUnit: 0.5,
+  materials: [
+    { productId: "p1", quantityPerUnit: 2, wastePct: 0, product: runko },
+    { productId: "p3", quantityPerUnit: 2, wastePct: 0, product: levy },
+  ],
+};
+
+const osat: Maararivi[] = [
+  { quantity: 100, structureType: ulkoseina },
+  { quantity: 40, structureType: valiseina },
+];
+
+describe("laskeMateriaalitarve", () => {
+  it("summaa saman nimikkeen eri rakenneosista hukka mukaan lukien", () => {
+    const tarve = laskeMateriaalitarve(osat);
+    const maarat = Object.fromEntries(tarve.map((t) => [t.nimike.code, t.maara]));
+    // runko: 100 × 2,5 × 1,10 + 40 × 2 = 275 + 80
+    expect(maarat["RUNKO-48x198"]).toBe(355);
+    // villa: 100 × 1 × 1,05
+    expect(maarat["VILLA-200"]).toBe(105);
+    // kipsi: 100 × 1 + 40 × 2
+    expect(maarat["KIPSI-13"]).toBe(180);
+  });
+
+  it("kertoo, mistä rakenteista tarve syntyy, ja järjestää koodin mukaan", () => {
+    const tarve = laskeMateriaalitarve(osat);
+    expect(tarve.map((t) => t.nimike.code)).toEqual(["KIPSI-13", "RUNKO-48x198", "VILLA-200"]);
+    expect(tarve.find((t) => t.nimike.id === "p1")!.rakenteet).toEqual(["US-1", "VS-1"]);
+  });
+
+  it("palauttaa tyhjän ilman rakenneosia", () => {
+    expect(laskeMateriaalitarve([])).toEqual([]);
+  });
+});
+
+describe("laskeTuntimenekki", () => {
+  it("kertoo määrät työtuntinormeilla", () => {
+    // 100 × 0,8 + 40 × 0,5
+    expect(laskeTuntimenekki(osat)).toBe(100);
+  });
+});
+
+describe("ostonimike rakenneosana", () => {
+  const ilp = { id: "p9", code: "ILP-35", name: "Ilmalämpöpumppu 3,5 kW", unit: "kpl" };
+  const ostonimike: Rakenneosa = {
+    id: "s9",
+    code: "ILP-35",
+    name: "Ilmalämpöpumppu asennettuna",
+    unit: "kpl",
+    laborHoursPerUnit: 3,
+    materials: [{ productId: "p9", quantityPerUnit: 1, wastePct: 0, product: ilp }],
+  };
+
+  it("tuo nimikkeen materiaalitarpeeseen kappalemääränä ja asennuksen tunteihin", () => {
+    const rivit: Maararivi[] = [...osat, { quantity: 2, structureType: ostonimike }];
+    expect(laskeMateriaalitarve(rivit).find((t) => t.nimike.code === "ILP-35")).toMatchObject({ maara: 2, rakenteet: ["ILP-35"] });
+    expect(laskeTuntimenekki(rivit)).toBe(100 + 6);
+    const k = laskeKustannus(rivit, new Map([["p9", 150000]]), 5500);
+    expect(k.materiaalitSentit).toBe(300000);
+  });
+});
+
+describe("laskeKustannus", () => {
+  const hinnat = new Map([
+    ["p1", 350], // 3,50 €/jm
+    ["p2", 900], // 9,00 €/m2
+    ["p3", 600], // 6,00 €/m2
+  ]);
+
+  it("laskee materiaalit ja työn senteissä", () => {
+    const k = laskeKustannus(osat, hinnat, 5500);
+    // 355 × 350 + 105 × 900 + 180 × 600 = 124250 + 94500 + 108000
+    expect(k.materiaalitSentit).toBe(326750);
+    expect(k.tyoSentit).toBe(100 * 5500);
+    expect(k.yhteensaSentit).toBe(326750 + 550000);
+    expect(k.puuttuvatHinnat).toEqual([]);
+    expect(k.tuntihintaPuuttuu).toBe(false);
+  });
+
+  it("listaa hinnattomat nimikkeet eikä laske niitä summaan", () => {
+    const k = laskeKustannus(osat, new Map([["p1", 350]]), 5500);
+    expect(k.materiaalitSentit).toBe(124250);
+    expect(k.puuttuvatHinnat.map((n) => n.code).sort()).toEqual(["KIPSI-13", "VILLA-200"]);
+  });
+
+  it("merkitsee puuttuvan tuntihinnan", () => {
+    const k = laskeKustannus(osat, hinnat, null);
+    expect(k.tyoSentit).toBe(0);
+    expect(k.tuntihintaPuuttuu).toBe(true);
+  });
+
+  it("laskee rakenneosan hinnan yksikköä kohti", () => {
+    const k = yksikkokustannus(ulkoseina, hinnat, 5500);
+    // 2,75 × 350 + 1,05 × 900 + 1 × 600 + 0,8 × 5500
+    expect(k.materiaalitSentit).toBe(Math.round(962.5 + 945 + 600));
+    expect(k.tyoSentit).toBe(4400);
+  });
+});
+
+describe("valitseHinnasto", () => {
+  const h = (id: string, alkaa: string, paattyy: string | null) => ({
+    id,
+    name: id,
+    validFrom: new Date(alkaa),
+    validTo: paattyy ? new Date(paattyy) : null,
+  });
+  const paiva = new Date("2026-10-06");
+
+  it("valitsee uusimman voimassa olevan", () => {
+    const valittu = valitseHinnasto(
+      [h("2025", "2025-01-01", "2025-12-31"), h("2026", "2026-01-01", null), h("2027", "2027-01-01", null)],
+      paiva
+    );
+    expect(valittu?.id).toBe("2026");
+  });
+
+  it("käyttää uusinta alkanutta, jos mikään ei ole voimassa", () => {
+    expect(valitseHinnasto([h("vanha", "2025-01-01", "2025-12-31")], paiva)?.id).toBe("vanha");
+  });
+
+  it("palauttaa null, jos yksikään ei ole alkanut", () => {
+    expect(valitseHinnasto([h("2027", "2027-01-01", null)], paiva)).toBeNull();
+  });
+});

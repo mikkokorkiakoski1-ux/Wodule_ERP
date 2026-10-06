@@ -22,11 +22,7 @@ export default async function ProjektiLayout({
       <div className="flex flex-col gap-4">
         <div>
           <p className="text-xs text-ink-muted font-mono uppercase">
-            <Link href="/asiakkuuksien-hallinta" className="hover:text-ink">
-              Asiakkuuksien hallinta
-            </Link>{" "}
-            &raquo;{" "}
-            <Link href="/asiakkuuksien-hallinta/projektit" className="hover:text-ink">
+            <Link href="/projektit" className="hover:text-ink">
               Projektit
             </Link>{" "}
             &raquo; {project.customer.name}

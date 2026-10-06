@@ -18,7 +18,7 @@ export default async function TehtavaluetteloPage({
   searchParams: { virhe?: string; muokkaa?: string; uusi?: string; henkilo?: string; valmiit?: string; nakyma?: string };
 }) {
   const projectId = params.projektiId;
-  const polku = `/asiakkuuksien-hallinta/projektit/${projectId}/tehtavat`;
+  const polku = `/projektit/${projectId}/tehtavat`;
   const [kaikki, henkilot, aikataulu, muokattava] = await Promise.all([
     haeTehtavalista({ projectId }),
     prisma.user.findMany({ orderBy: { name: "asc" } }),

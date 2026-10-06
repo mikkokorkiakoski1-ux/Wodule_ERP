@@ -1,9 +1,18 @@
 # Toiminnanohjaus
 
-Sisäinen toiminnanohjausjärjestelmä (ERP), rakennettu suoraan liitteenä olleen
-sivukartta-/rakennekaavion mukaan (ks. `docs/rakennekaavio.jpg` ja
-`docs/ARKKITEHTUURI.md`). Viisi pääosiota: **Asiakkuuksien hallinta**,
-**Tuotehallinta**, **Reklamaatiot**, **Laadunvarmistus** ja **Tuotannon ohjaus**.
+Sisäinen toiminnanohjausjärjestelmä (ERP) talotehtaalle, rakennettu
+liitteenä olleen sivukartta-/rakennekaavion pohjalta (ks.
+`docs/rakennekaavio.jpg` ja `docs/ARKKITEHTUURI.md`). Kuusi pääosiota:
+**Asiakkuuksien hallinta**, **Projektit**, **Tuotehallinta**,
+**Reklamaatiot**, **Laadunvarmistus** ja **Tuotannon ohjaus**.
+
+Projekti on pääobjekti. Jokainen rakennus on erilainen, mutta se kootaan
+rakenneosakirjastosta: projekti → rakennus → määräluettelo (rakenneosa ×
+määrä) ja elementti. Rakenneosa on joko tehtaan oma rakenne
+(materiaaliluettelo) tai valmiina ostettava ostonimike. Materiaaliluetteloista ja
+työtuntinormeista lasketaan tarjouksen omakustannus, hankintojen
+materiaalitarve ja tehtaan tuntimenekki. Määrät voi tuoda BIM-mallin
+määräluettelosta.
 
 Tämä on ensimmäinen, toimiva versio kaikista viidestä osiosta - tarkoitettu
 jatkokehitettäväksi Claude Codella. Ks. lopussa oleva **Jatkokehitys**-osio
@@ -59,10 +68,17 @@ Sivulla `/tiedonsiirto` voi tuoda ja viedä kaikkien osioiden tietoja:
 - **Pohjat:** tyhjä tuontipohja kohteittain, esimerkkirivin kanssa.
 - **Loki:** tallennetut tuonnit ja viennit kirjataan tauluun `DataTransferLog`.
 
-Kohteet: asiakkaat, tarjoukset, projektit, tilausvahvistukset,
-virstanpylväät, hankintasuunnitelmat, tuotantoaikataulu, nimikkeet,
-hinnastot, hinnastorivit, reklamaatiot, tarkastuslistat, tarkastuskohdat,
-dopit, tuotantokansiot, työmääräimet ja piirustukset.
+Kohteet: asiakkaat, tarjoukset, projektit, rakennukset, määräluettelo
+(BIM), elementit, tilausvahvistukset, virstanpylväät,
+hankintasuunnitelmat, tuotantoaikataulu, nimikkeet, rakenneosat,
+rakenneosien materiaalit, hinnastot, hinnastorivit, reklamaatiot, tarkastuslistat,
+tarkastuskohdat, dopit, tuotantokansiot, työmääräimet ja piirustukset.
+
+**BIM-määräluettelo:** vie mallista (Revit, Tekla, Archicad, Solibri)
+määräluettelo Exceliin tai CSV:ksi ja tuo se kohteeseen *Määräluettelo*.
+Sarakkeet tunnistetaan myös englanninkielisistä otsikoista (Type Name, Area,
+Level, GlobalId). Rakenneosa tunnistetaan koodista tai rakenneosan
+BIM-tyyppinimestä, ja GlobalId päivittää uusintatuonnissa saman rivin.
 
 ## Jatkokehitys (Claude Code)
 
@@ -80,7 +96,21 @@ dopit, tuotantokansiot, työmääräimet ja piirustukset.
 - Tehtäväluettelo henkilöittäin, henkilörekisteri (`/henkilot`) ja projektiorganisaatio.
 - Projektin Excelin voi tuoda suoraan projektin sivulta.
 
-Seuraavaksi: kokeile uusia projektisivuja selaimessa oikealla projektilla
+**Tilanne 6.10.2026.** Projekti pääobjektiksi ja talotehtaan tietomalli:
+
+- Projektit omaksi pääosiokseen (`/projektit`), vanhat osoitteet ohjataan uusiin.
+- Rakennukset projektin alle, rakenneosakirjasto (rakenteet materiaaliluetteloineen ja työtuntinormeineen sekä ostonimikkeet), määräluettelot ja elementit.
+- Tarjouksen sisältö (rakennukset ja määräluettelot), omakustannus ja kate. "Muuta projektiksi" siirtää rakennukset projektille.
+- Materiaalitarve nimikkeittäin ja hankintarivien luonti siitä. Hinnastoille tuntihinta.
+- Reklamaatiot, tarkastuslistat (pohjat), dokumentit, työmääräimet ja piirustukset kohdistettavissa rakennukseen tai elementtiin.
+- BIM-valmius: määräluettelon tuonti, GUID:t rakennuksille, määräluettelon riveille ja elementeille, BIM-mallin linkki.
+- `docs/rakennekaavio.jpg` pitää päivittää käsin uutta rakennetta vastaavaksi.
+
+Seuraavaksi BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista)
+tai mallipalvelun rajapinta (Trimble Connect, Dalux), jotta määräluettelon
+vientiä ei tarvita.
+
+Aiemmin: kokeile uusia projektisivuja selaimessa oikealla projektilla
 (tehtävien jako henkilöille, vaiheiden siirto, Excel-tuonti) ja korjaa
 havainnot ennen uusia ominaisuuksia.
 
@@ -90,7 +120,7 @@ hankintojen vaiheet Excelin mukaisiksi. Järjestelmässä eteenpäin siirretyt
 vaiheet voivat siis palata taaksepäin. Vaihtoehto on muuttaa tuontia niin,
 ettei se koskaan siirrä vaihetta taaksepäin. Päätös on vielä tekemättä.
 
-Kaikki viisi osiota ovat käytettävissä (lisäys ja listaus tietokannasta), mutta
+Kaikki osiot ovat käytettävissä (lisäys ja listaus tietokannasta), mutta
 moni yksityiskohta on vielä auki. Ehdotettu järjestys:
 
 1. **Kirjautuminen ja käyttöoikeudet.** `User`-malli ja `UserRole`-enum ovat
@@ -111,7 +141,7 @@ moni yksityiskohta on vielä auki. Ehdotettu järjestys:
    aikajana halutaan takaisin, se voi ottaa suoraan mallia alkuperäisestä
    Artifact-sivusta.
 5. **Testit.** Vitest on käytössä (`npm test`). Testattuja ovat
-   `src/lib/production-schedule.ts` ja tiedonsiirron puhdas logiikka.
+   `src/lib/production-schedule.ts`, rakenteiden laskenta (`src/lib/rakenteet.ts`) ja tiedonsiirron puhdas logiikka.
    Seuraavaksi kannattaa testata Server Actionsien ja rajapintareittien
    validointi sekä tiedonsiirron tuonti tietokantaa vasten.
 6. **Muokkaus ja poisto.** Projektiaikataulussa, hankintasuunnitelmassa,

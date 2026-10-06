@@ -40,7 +40,7 @@ export function Tehtavalista({
       </thead>
       <tbody>
         {rivit.map((r) => {
-          const pohja = `/asiakkuuksien-hallinta/projektit/${r.projectId}`;
+          const pohja = `/projektit/${r.projectId}`;
           const seuraava = r.vaihe ? seuraavaVaihe(r.vaihe) : null;
           return (
             <tr key={`${r.tyyppi}-${r.id}`} className={`border-b border-line last:border-0 align-top ${r.paattynyt ? "text-ink-muted" : ""}`}>

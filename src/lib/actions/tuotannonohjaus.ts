@@ -6,6 +6,20 @@ import { z } from "zod";
 
 // Sharepoint-tuotantokansio luodaan/haetaan projektille lazily (upsert),
 // koska kaaviossa jokaisella projektilla on täsmälleen yksi kansio.
+/** "rakennus:<id>" tai "elementti:<id>" -> rakennus ja elementti; varmistaa, että kohde kuuluu projektiin. */
+async function kohdistus(projectId: string, arvo: FormDataEntryValue | null) {
+  const [taso, id] = typeof arvo === "string" && arvo ? arvo.split(":") : [];
+  if (taso === "elementti") {
+    const e = await prisma.productionElement.findFirstOrThrow({ where: { id, building: { projectId } } });
+    return { buildingId: e.buildingId, elementId: e.id };
+  }
+  if (taso === "rakennus") {
+    const b = await prisma.building.findFirstOrThrow({ where: { id, projectId } });
+    return { buildingId: b.id, elementId: null };
+  }
+  return { buildingId: null, elementId: null };
+}
+
 async function getOrCreateFolder(projectId: string) {
   return prisma.productionFolder.upsert({
     where: { projectId },
@@ -52,6 +66,7 @@ export async function addWorkOrder(formData: FormData) {
   const folder = await getOrCreateFolder(parsed.projectId);
   await prisma.workOrder.create({
     data: {
+      ...(await kohdistus(parsed.projectId, formData.get("kohde"))),
       productionFolderId: folder.id,
       number: parsed.number,
       description: parsed.description || null,
@@ -60,6 +75,7 @@ export async function addWorkOrder(formData: FormData) {
   });
 
   revalidatePath(`/tuotannon-ohjaus/${parsed.projectId}/tyomaaraimet`);
+  revalidatePath(`/projektit/${parsed.projectId}`, "layout");
 }
 
 const drawingInput = z.object({
@@ -80,6 +96,7 @@ export async function addDrawing(formData: FormData) {
   const folder = await getOrCreateFolder(parsed.projectId);
   await prisma.drawing.create({
     data: {
+      ...(await kohdistus(parsed.projectId, formData.get("kohde"))),
       productionFolderId: folder.id,
       title: parsed.title,
       revision: parsed.revision,
@@ -88,4 +105,5 @@ export async function addDrawing(formData: FormData) {
   });
 
   revalidatePath(`/tuotannon-ohjaus/${parsed.projectId}/piirustukset`);
+  revalidatePath(`/projektit/${parsed.projectId}`, "layout");
 }

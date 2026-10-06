@@ -50,7 +50,7 @@ export async function createOffer(formData: FormData) {
     validUntil: formData.get("validUntil") || undefined,
   });
 
-  await prisma.offer.create({
+  const offer = await prisma.offer.create({
     data: {
       customerId: parsed.customerId,
       title: parsed.title,
@@ -60,34 +60,76 @@ export async function createOffer(formData: FormData) {
   });
 
   revalidatePath("/asiakkuuksien-hallinta/tarjoukset");
+  // Tarjouksen sivulla annetaan sen sisältö: rakennukset ja määräluettelot.
+  redirect(`/asiakkuuksien-hallinta/tarjoukset/${offer.id}`);
+}
+
+const offerUpdateInput = z.object({
+  id: z.string().cuid(),
+  title: z.string().trim().min(1, "Otsikko on pakollinen"),
+  status: z.enum(["LUONNOS", "LAHETETTY", "HYVAKSYTTY", "HYLATTY"]),
+  amountEuros: z.string().optional(),
+  validUntil: z.string().optional(),
+});
+
+export async function updateOffer(formData: FormData) {
+  const parsed = offerUpdateInput.parse({
+    id: formData.get("id"),
+    title: formData.get("title"),
+    status: formData.get("status"),
+    amountEuros: formData.get("amountEuros") || undefined,
+    validUntil: formData.get("validUntil") || undefined,
+  });
+  const euroja = parsed.amountEuros ? Number(parsed.amountEuros.replace(/\s|€/g, "").replace(",", ".")) : null;
+  const polku = `/asiakkuuksien-hallinta/tarjoukset/${parsed.id}`;
+  if (euroja !== null && (!Number.isFinite(euroja) || euroja < 0)) {
+    redirect(`${polku}?virhe=${encodeURIComponent(`"${parsed.amountEuros}" ei ole euromäärä`)}`);
+  }
+
+  await prisma.offer.update({
+    where: { id: parsed.id },
+    data: {
+      title: parsed.title,
+      status: parsed.status,
+      amountCents: euroja === null ? null : Math.round(euroja * 100),
+      validUntil: parsed.validUntil ? new Date(parsed.validUntil) : null,
+    },
+  });
+
+  revalidatePath("/asiakkuuksien-hallinta/tarjoukset", "layout");
+  redirect(polku);
 }
 
 // "Muuta projektiksi": luo tarjouksesta projektin (sama asiakas, nimi = otsikko),
-// merkitsee tarjouksen hyväksytyksi ja siirtää käyttäjän Projektit-sivulle.
+// liittää tarjouksen rakennukset määräluetteloineen projektiin, merkitsee
+// tarjouksen hyväksytyksi ja siirtää käyttäjän projektin Rakennukset-sivulle.
 // Tarjous jää historiaan, ja Project.offerId:n @unique estää tuplamuunnoksen.
 export async function convertOfferToProject(formData: FormData) {
   const offerId = z.string().cuid().parse(formData.get("offerId"));
 
-  await prisma.$transaction(async (tx) => {
+  const projectId = await prisma.$transaction(async (tx) => {
     const offer = await tx.offer.findUniqueOrThrow({
       where: { id: offerId },
       include: { project: true },
     });
-    if (offer.project) return;
+    if (offer.project) return offer.project.id;
 
-    await tx.project.create({
+    const project = await tx.project.create({
       data: {
         customerId: offer.customerId,
         offerId: offer.id,
         name: offer.title,
       },
     });
+    // Rakennukset siirtyvät projektille; offerId jää kertomaan alkuperän.
+    await tx.building.updateMany({ where: { offerId: offer.id, projectId: null }, data: { projectId: project.id } });
     await tx.offer.update({ where: { id: offer.id }, data: { status: "HYVAKSYTTY" } });
+    return project.id;
   });
 
   revalidatePath("/asiakkuuksien-hallinta/tarjoukset");
-  revalidatePath("/asiakkuuksien-hallinta/projektit");
-  redirect("/asiakkuuksien-hallinta/projektit");
+  revalidatePath("/projektit");
+  redirect(`/projektit/${projectId}/rakennukset`);
 }
 
 const projectInput = z.object({
@@ -119,7 +161,7 @@ export async function createProject(formData: FormData) {
     },
   });
 
-  revalidatePath("/asiakkuuksien-hallinta/projektit");
+  revalidatePath("/projektit");
 }
 
 const orderConfirmationInput = z.object({
@@ -143,7 +185,7 @@ export async function createOrderConfirmation(formData: FormData) {
     },
   });
 
-  revalidatePath(`/asiakkuuksien-hallinta/projektit/${parsed.projectId}`);
+  revalidatePath(`/projektit/${parsed.projectId}`);
 }
 
 const milestoneInput = z.object({
@@ -170,10 +212,10 @@ export async function addMilestone(formData: FormData) {
     },
   });
 
-  revalidatePath(`/asiakkuuksien-hallinta/projektit/${parsed.projectId}/aikataulu`);
+  revalidatePath(`/projektit/${parsed.projectId}/aikataulu`);
 }
 
 export async function toggleMilestone(id: string, projectId: string, done: boolean) {
   await prisma.projectMilestone.update({ where: { id }, data: { done } });
-  revalidatePath(`/asiakkuuksien-hallinta/projektit/${projectId}/aikataulu`);
+  revalidatePath(`/projektit/${projectId}/aikataulu`);
 }

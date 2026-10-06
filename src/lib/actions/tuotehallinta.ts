@@ -35,6 +35,7 @@ const priceListInput = z.object({
   name: z.string().trim().min(1, "Nimi on pakollinen"),
   validFrom: z.string().optional(),
   validTo: z.string().optional(),
+  laborHourEuros: z.coerce.number().min(0).optional(),
 });
 
 export async function createPriceList(formData: FormData) {
@@ -42,6 +43,7 @@ export async function createPriceList(formData: FormData) {
     name: formData.get("name"),
     validFrom: formData.get("validFrom") || undefined,
     validTo: formData.get("validTo") || undefined,
+    laborHourEuros: formData.get("laborHourEuros") || undefined,
   });
 
   await prisma.priceList.create({
@@ -49,10 +51,31 @@ export async function createPriceList(formData: FormData) {
       name: parsed.name,
       validFrom: parsed.validFrom ? new Date(parsed.validFrom) : new Date(),
       validTo: parsed.validTo ? new Date(parsed.validTo) : null,
+      laborHourCents: parsed.laborHourEuros !== undefined ? Math.round(parsed.laborHourEuros * 100) : null,
     },
   });
 
   revalidatePath("/tuotehallinta/hinnastot");
+}
+
+const laborRateInput = z.object({
+  priceListId: z.string().cuid(),
+  laborHourEuros: z.coerce.number().min(0).optional(),
+});
+
+/** Hinnaston tuntihinta rakenteiden kustannuslaskentaan. Tyhjä = ei tuntihintaa. */
+export async function setLaborRate(formData: FormData) {
+  const parsed = laborRateInput.parse({
+    priceListId: formData.get("priceListId"),
+    laborHourEuros: formData.get("laborHourEuros") || undefined,
+  });
+
+  await prisma.priceList.update({
+    where: { id: parsed.priceListId },
+    data: { laborHourCents: parsed.laborHourEuros !== undefined ? Math.round(parsed.laborHourEuros * 100) : null },
+  });
+
+  revalidatePath("/tuotehallinta", "layout");
 }
 
 const priceListItemInput = z.object({

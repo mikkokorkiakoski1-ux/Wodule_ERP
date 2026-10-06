@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { convertOfferToProject, createOffer } from "@/lib/actions/asiakkuudet";
 
@@ -16,7 +17,7 @@ export default async function TarjouksetPage() {
     prisma.offer.findMany({
       where: { project: { is: null } },
       orderBy: { createdAt: "desc" },
-      include: { customer: true },
+      include: { customer: true, _count: { select: { buildings: true } } },
     }),
     prisma.customer.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -58,6 +59,7 @@ export default async function TarjouksetPage() {
               <th className="p-3">Asiakas</th>
               <th className="p-3">Otsikko</th>
               <th className="p-3">Tila</th>
+              <th className="p-3 text-right">Rakennuksia</th>
               <th className="p-3 text-right">Summa</th>
               <th className="p-3">Voimassa</th>
               <th className="p-3"></th>
@@ -67,10 +69,15 @@ export default async function TarjouksetPage() {
             {offers.map((o) => (
               <tr key={o.id} className="border-b border-line last:border-0">
                 <td className="p-3 font-medium">{o.customer.name}</td>
-                <td className="p-3">{o.title}</td>
+                <td className="p-3">
+                  <Link href={`/asiakkuuksien-hallinta/tarjoukset/${o.id}`} className="hover:underline">
+                    {o.title}
+                  </Link>
+                </td>
                 <td className="p-3">
                   <span className="badge muted">{STATUS_LABEL[o.status]}</span>
                 </td>
+                <td className="p-3 text-right font-mono">{o._count.buildings}</td>
                 <td className="p-3 text-right font-mono">
                   {o.amountCents != null ? (o.amountCents / 100).toFixed(2) + " €" : "–"}
                 </td>
@@ -87,7 +94,7 @@ export default async function TarjouksetPage() {
             ))}
             {offers.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-ink-muted">
+                <td colSpan={7} className="p-6 text-center text-ink-muted">
                   Ei vielä tarjouksia.
                 </td>
               </tr>

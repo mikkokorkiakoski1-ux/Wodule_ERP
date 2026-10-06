@@ -262,7 +262,7 @@ export function TuotantoaikatauluClient() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-ink-muted font-mono uppercase">
-            Asiakkuuksien hallinta &raquo; Projektit &raquo; Tuotantoaikataulu projektit
+            Projektit &raquo; Tuotantoaikataulu projektit
           </p>
           <h1 className="text-2xl font-semibold">Tuotantoaikataulu</h1>
         </div>

@@ -11,20 +11,20 @@ const SECTIONS = [
   {
     title: "Asiakkuuksien hallinta",
     href: "/asiakkuuksien-hallinta",
-    children: [
-      { title: "Tarjoukset", href: "/asiakkuuksien-hallinta/tarjoukset" },
-      { title: "Projektit", href: "/asiakkuuksien-hallinta/projektit" },
-      {
-        title: "Tuotantoaikataulu projektit",
-        href: "/asiakkuuksien-hallinta/projektit/tuotantoaikataulu",
-      },
-    ],
+    children: [{ title: "Tarjoukset", href: "/asiakkuuksien-hallinta/tarjoukset" }],
+  },
+  {
+    // Pääobjekti: rakennukset, aikataulu, hankinnat ja tuotanto kulkevat projektin kautta.
+    title: "Projektit",
+    href: "/projektit",
+    children: [{ title: "Tuotantoaikataulu projektit", href: "/projektit/tuotantoaikataulu" }],
   },
   {
     title: "Tuotehallinta",
     href: "/tuotehallinta",
     children: [
       { title: "Nimikkeistö", href: "/tuotehallinta/nimikkeisto" },
+      { title: "Rakenneosat", href: "/tuotehallinta/rakenneosat" },
       { title: "Hinnastot", href: "/tuotehallinta/hinnastot" },
     ],
   },

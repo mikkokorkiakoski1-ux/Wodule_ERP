@@ -78,7 +78,7 @@ export default async function HenkilonTehtavatPage({
         <section key={projectId} className="card">
           <header className="flex items-baseline justify-between px-4 pt-4 pb-2">
             <h2 className="text-base">{r[0].projekti}</h2>
-            <Link href={`/asiakkuuksien-hallinta/projektit/${projectId}/tehtavat`} className="underline text-xs">
+            <Link href={`/projektit/${projectId}/tehtavat`} className="underline text-xs">
               Projektin tehtäväluettelo
             </Link>
           </header>

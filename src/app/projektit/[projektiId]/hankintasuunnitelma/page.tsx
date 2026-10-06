@@ -71,7 +71,7 @@ export default async function HankintasuunnitelmaPage({
   searchParams: Haku;
 }) {
   const projectId = params.projektiId;
-  const polku = `/asiakkuuksien-hallinta/projektit/${projectId}/hankintasuunnitelma`;
+  const polku = `/projektit/${projectId}/hankintasuunnitelma`;
   const tanaan = new Date();
   const [{ aikataulu, rivit }, henkilot] = await Promise.all([
     haeHankinnat(projectId, tanaan),

@@ -10,11 +10,11 @@
  * ?virhe=-parametrin kanssa, jonka sivu näyttää.
  */
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { seuraavaVaihe, type Vaihe } from "@/lib/hankinta";
+import { euroja, jasenna, kentat, paivia, palaa, valinnainenKokonaisluku, valinnainenPvm, valinnainenTeksti } from "@/lib/lomake";
 
 const VAIHEARVOT = ["AINEISTO", "PYYNTO", "TARJOUS", "VERTAILU", "SOPIMUS", "TOIMITUS", "VALMIS", "EI_TARVITA"] as const;
 
@@ -22,61 +22,8 @@ const VAIHEARVOT = ["AINEISTO", "PYYNTO", "TARJOUS", "VERTAILU", "SOPIMUS", "TOI
 // Apufunktiot
 // ------------------------------------------------------------
 
-/** Lomakkeen kentät olioksi; tyhjät merkkijonot -> undefined. */
-function kentat(formData: FormData): Record<string, string | undefined> {
-  const o: Record<string, string | undefined> = {};
-  formData.forEach((v, k) => {
-    if (typeof v === "string") o[k] = v.trim() === "" ? undefined : v.trim();
-  });
-  return o;
-}
-
-const valinnainenTeksti = z.string().optional().transform((v) => v ?? null);
-const valinnainenPvm = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Päivämäärä muodossa VVVV-KK-PP")
-  .optional()
-  .transform((v) => (v ? new Date(v) : null));
-const valinnainenKokonaisluku = z.coerce.number().int().optional().transform((v) => v ?? null);
-const paivia = (oletus: number) => z.coerce.number().int().min(0, "Päivien määrä ei voi olla negatiivinen").default(oletus);
-const euroja = z
-  .string()
-  .optional()
-  .transform((v, ctx) => {
-    if (!v) return null;
-    const n = Number(v.replace(/\s|€/g, "").replace(",", "."));
-    if (!Number.isFinite(n) || n < 0) {
-      ctx.addIssue({ code: "custom", message: `"${v}" ei ole euromäärä` });
-      return z.NEVER;
-    }
-    return Math.round(n * 100);
-  });
-
 function projektinPolku(projectId: string) {
-  return `/asiakkuuksien-hallinta/projektit/${projectId}`;
-}
-
-/**
- * Palaa sivulle. Suodattimet (?henkilo= jne.) säilyvät, mutta lomakkeen
- * tila (?muokkaa=, ?uusi=) ja edellinen virhe poistetaan. Virheen kanssa
- * palataan ?virhe=-parametrilla.
- */
-function palaa(paluu: string | undefined, virhe?: string): never {
-  const [polku, haku = ""] = (paluu ?? "/").split("?");
-  const p = new URLSearchParams(haku);
-  for (const k of ["virhe", "muokkaa", "uusi"]) p.delete(k);
-  if (virhe) p.set("virhe", virhe);
-  const s = p.toString();
-  redirect(s ? `${polku}?${s}` : polku);
-}
-
-function jasenna<T extends z.ZodTypeAny>(skeema: T, data: unknown, paluu: string | undefined): z.infer<T> {
-  const tulos = skeema.safeParse(data);
-  if (!tulos.success) {
-    const i = tulos.error.issues[0];
-    palaa(paluu, i.message);
-  }
-  return tulos.data;
+  return `/projektit/${projectId}`;
 }
 
 function paivita(projectId: string) {

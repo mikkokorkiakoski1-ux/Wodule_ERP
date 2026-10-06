@@ -19,6 +19,17 @@ export function euro(sentit: number | null | undefined): string {
   return (sentit / 100).toLocaleString("fi-FI", { style: "currency", currency: "EUR" });
 }
 
+/** Määrä suomalaisittain, esim. 1 234,5. */
+export function maara(n: number | null | undefined, desimaaleja = 2): string {
+  if (n === null || n === undefined) return "–";
+  return n.toLocaleString("fi-FI", { maximumFractionDigits: desimaaleja });
+}
+
+/** Luku syötekenttään pilkulla, esim. 12.5 -> "12,5". */
+export function syoteLuku(n: number | null | undefined): string {
+  return n === null || n === undefined ? "" : String(n).replace(".", ",");
+}
+
 /** Päivämäärä <input type="date"> -kentän arvoksi (VVVV-KK-PP). */
 export function syotePvm(d: Date | null | undefined): string {
   if (!d) return "";

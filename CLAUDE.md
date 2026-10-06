@@ -43,17 +43,36 @@ npx vitest run src/lib/production-schedule.test.ts   # yksi tiedosto
 - **Älä aja `npm run build`:ia kehityspalvelimen ollessa käynnissä.** Molemmat käyttävät `.next`-kansiota, ja kehityspalvelin alkaa palauttaa 500-virheitä. Pysäytä palvelin, aja build, poista `.next` ja käynnistä palvelin uudelleen.
 - Tailwindin konfiguraatiomuutokset vaativat kehityspalvelimen uudelleenkäynnistyksen.
 
-Testikehys on Vitest (`vitest.config.ts` määrittää `@/`-aliaksen). Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Testattuja ovat `src/lib/production-schedule.ts`, projektiaikataulun ja hankintojen laskenta (`src/lib/projektiaikataulu.test.ts`) ja tiedonsiirron puhdas logiikka (`src/lib/tiedonsiirto/tiedonsiirto.test.ts`: CSV, arvojen tulkinta, otsikoiden tunnistus). Tietokantaa käyttävää tuontia ei ole yksikkötestattu. Tuotantoaikataulun testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
+- **Kokeile seediä tai tuhoavia muutoksia erillisessä kannassa.** `npm run db:seed` tyhjentää kannan. Luo kokeilukanta (`CREATE DATABASE erp_kokeilu OWNER erp;`) ja aja komennot `DATABASE_URL`-ympäristömuuttujalla, joka ohittaa `.env`:n. Tuotantobuildin voi ajaa samaa kantaa vasten toisessa portissa (`npx next start -p 3001`), jolloin kehityspalvelimen `.next` ei ole käytössä. Poista `.next` lopuksi.
+- **Windows: rivinvaihdot.** Git hakee tiedostot CRLF-rivinvaihdoin (`core.autocrlf=true`). Monirivinen merkkijonokorvaus skriptillä ei osu, ellei rivinvaihtoja normalisoida ensin. Edit-työkalu käsittelee ne oikein.
+
+Testikehys on Vitest (`vitest.config.ts` määrittää `@/`-aliaksen). Testit ovat testattavan tiedoston vieressä (`*.test.ts`). Testattuja ovat `src/lib/production-schedule.ts`, projektiaikataulun ja hankintojen laskenta (`src/lib/projektiaikataulu.test.ts`), rakenteiden laskenta (`src/lib/rakenteet.test.ts`) ja tiedonsiirron puhdas logiikka (`src/lib/tiedonsiirto/tiedonsiirto.test.ts`: CSV, arvojen tulkinta, otsikoiden tunnistus). Tietokantaa käyttävää tuontia ei ole yksikkötestattu. Tuotantoaikataulun testit lukitsevat alkuperäisen laskennan toiminnan, joten hajoava testi tarkoittaa yleensä kiellettyä laskennan muutosta.
 
 ## Arkkitehtuuri
 
 **Rakennekaavio on totuuden lähde.** `docs/rakennekaavio.jpg` määrittää kaikki osiot ja alasivut. `docs/ARKKITEHTUURI.md` sisältää vastaavuustaulukon: kaavion solmu → reitti → Prisma-malli(t). Jos rakenne muuttuu, päivitä yhdessä kaavio, tämä taulukko ja `src/components/SectionNav.tsx`.
 
-Viisi pääosiota ovat kukin oma kansionsa `src/app/`-hakemistossa: `asiakkuuksien-hallinta`, `tuotehallinta`, `reklamaatiot`, `laadunvarmistus`, `tuotannon-ohjaus`. `prisma/schema.prisma` on ryhmitelty samoihin viiteen osioon.
+Kuusi pääosiota ovat kukin oma kansionsa `src/app/`-hakemistossa: `asiakkuuksien-hallinta` (asiakkaat ja tarjoukset), `projektit`, `tuotehallinta`, `reklamaatiot`, `laadunvarmistus`, `tuotannon-ohjaus`. Projektit siirrettiin Asiakkuuksien hallinnan alta omaksi osiokseen. Vanhat osoitteet ohjataan uusiin (`next.config.mjs`), mutta `docs/rakennekaavio.jpg` on vielä päivittämättä.
+
+### Talotehtaan runko: projekti → rakennus → määräluettelo ja elementti
+
+Jokainen rakennus on erilainen, mutta rakenteet ja materiaalit on vakioitu. Projekti on pääobjekti, ja sen alla ovat rakennukset (`Building`). Rakennus kootaan rakenneosakirjastosta (Tuotehallinta > Rakenneosat): rakennuksen **määräluettelon** rivi on rakenneosa × määrä.
+
+**Termit (UI ↔ malli):** *rakenneosa* = `StructureType`, *määräluettelon rivi* = `BuildingPart`. Mallien nimet ovat historiallisia; käyttöliittymässä, reiteissä ja tiedonsiirrossa käytetään suomenkielisiä termejä. Älä kutsu `BuildingPart`ia käyttöliittymässä rakenneosaksi.
+
+Rakenneosalla on laji (`kind`):
+- **Rakenne** (`RAKENNE`): tehtaan oma vakiorakenne, jolla on materiaaliluettelo (`StructureMaterial`: nimike × menekki per yksikkö + hukka-%) ja työtuntinormi.
+- **Ostonimike** (`OSTONIMIKE`): valmiina ostettava osa (esim. ilmalämpöpumppu, keittiökaluste, ikkuna). Sen materiaaliluettelo on aina täsmälleen yksi rivi, nimike × 1, ja yksikkö tulee nimikkeeltä (`tallennaOstonimike` pitää tämän voimassa; materiaalieditori on estetty). Työtunnit tarkoittavat asennus- tai käsittelyaikaa. Koska ostonimike laskee samoin kuin rakenne, se päätyy materiaalitarpeen kautta hankintasuunnitelmaan ilman erillistä logiikkaa.
+- **Laskenta** on puhtaana tiedostossa `src/lib/rakenteet.ts` (materiaalitarve, tuntimenekki, omakustannus) ja tietokantahaut tiedostossa `src/lib/rakennukset.ts` (`laskeRakennukset(where)`). Hinnat tulevat uusimmasta voimassa olevasta hinnastosta, ja työn hinta on `PriceList.laborHourCents`. Laskettu tuntimenekki on vain vertailuluku: se **ei saa** kirjoittua tuotantoaikataulun `tuntimenekki`- eikä `kesto`-kenttään.
+- **Rakennus kuuluu ensin tarjoukselle** (`offerId`). "Muuta projektiksi" (`convertOfferToProject`) asettaa samoille riveille `projectId`:n, ja `offerId` jää historiaksi. Projektiksi muutetun tarjouksen rakennuksia muokataan projektissa, ja tarjoussivu näyttää ne vain luettavina.
+- **Elementit** (`ProductionElement`) ovat tehtaan valmistamia yksiköitä. Työmääräimet, piirustukset, tarkastuslistat ja reklamaatiot voi kohdistaa rakennukseen tai elementtiin (`buildingId`, `elementId`). Reklamaatiossa ylemmät tasot päätellään: elementistä rakennus, siitä projekti ja siitä asiakas.
+- **Tarkastuslistapohjat** (`QaChecklist.isTemplate`) kopioidaan rakennukselle tai elementille (`luoTarkastuslistaPohjasta`). Pohjaan ei kirjata tuloksia.
+- **Materiaalitarve → hankinnat:** `luoHankinnatMateriaalitarpeesta` luo nimikkeittäin `ProcurementItem`-rivin (`productId`). Uudelleenajo päivittää vain määrän, joten vaihe ja toimittaja säilyvät. Rivejä ei poisteta.
+- **BIM:** määrät tuodaan tiedonsiirtokohteella `maaraluettelo` (BIM-mallin määräluettelo Excelinä tai CSV:nä). Rakenneosa tunnistetaan koodista tai `bimTypeName`:sta, `bimGuid` päivittää uusintatuonnissa saman rivin (`@@unique([buildingId, bimGuid])`), ja puuttuva rakennus luodaan. Rakennuksella ja elementillä on oma `bimGuid`, ja rakennuksella myös `bimModelUrl`.
 
 Tietoa käsitellään kolmella tavalla:
 - **Server Actions (oletus).** Sivut ovat palvelinkomponentteja, jotka kyselevät `prisma`-singletonia (`src/lib/prisma.ts`) suoraan. Lomakkeet lähettävät tiedot `"use server"`-funktioille tiedostoissa `src/lib/actions/<osio>.ts`. Jokainen toiminto validoi `FormData`:n inline-zod-skeemalla, kirjoittaa Prisman kautta ja kutsuu lopuksi `revalidatePath`-funktiota muuttuneelle reitille.
-- **REST + client-komponentti (poikkeus).** "Tuotantoaikataulu projektit" (`/asiakkuuksien-hallinta/projektit/tuotantoaikataulu`) renderöi komponentin `src/components/TuotantoaikatauluClient.tsx`. Se kutsuu reittejä `src/app/api/tuotantoaikataulu/**`:
+- **REST + client-komponentti (poikkeus).** "Tuotantoaikataulu projektit" (`/projektit/tuotantoaikataulu`) renderöi komponentin `src/components/TuotantoaikatauluClient.tsx`. Se kutsuu reittejä `src/app/api/tuotantoaikataulu/**`:
   - kokoelma: `GET` ja `POST`
   - `[id]`: muokkaus ja poisto
   - `jarjestys`: järjestyksen vaihto, joka vaihtaa kahden rivin `seq`-arvot transaktiossa
@@ -85,8 +104,8 @@ Rahasummat tallennetaan kokonaislukuina sentteinä (esim. `amountCents`). Lomakk
 
 ### Kaksi eri "aikataulua": älä sekoita
 
-- **`ProductionScheduleItem`** ("Tuotantoaikataulu projektit") on koko tuotannon Gantt, jonka laskenta kuvataan yllä. Se kuuluu osioon Asiakkuuksien hallinta > Projektit, **ei** Tuotannon ohjaukseen.
-- **`ScheduleTask`** ("Projektiaikataulu", `/asiakkuuksien-hallinta/projektit/[id]/aikataulu`) on yhden projektin tehtäväaikataulu projektinhallinnan Excelin mallilla: tehtävällä on tunnus (T1, T2, …) ja edeltäjä tunnuksena (`predecessorCode`, ei viiteavain). Laskenta on tiedostossa `src/lib/projektiaikataulu.ts`. Se käyttää production-schedule.ts:n funktioita, mutta ei saa muuttaa niitä. Samalla sivulla ovat asiakkaalle näkyvät virstanpylväät (`ProjectMilestone`). Projektiaikataulu ei ole kytköksissä tuotannon Ganttiin.
+- **`ProductionScheduleItem`** ("Tuotantoaikataulu projektit") on koko tuotannon Gantt, jonka laskenta kuvataan yllä. Se kuuluu Projektit-osioon, **ei** Tuotannon ohjaukseen. Rivin voi liittää projektiin ja rakennukseen (`projectId`, `buildingId`). Liitos ei vaikuta laskentaan.
+- **`ScheduleTask`** ("Projektiaikataulu", `/projektit/[id]/aikataulu`) on yhden projektin tehtäväaikataulu projektinhallinnan Excelin mallilla: tehtävällä on tunnus (T1, T2, …) ja edeltäjä tunnuksena (`predecessorCode`, ei viiteavain). Laskenta on tiedostossa `src/lib/projektiaikataulu.ts`. Se käyttää production-schedule.ts:n funktioita, mutta ei saa muuttaa niitä. Samalla sivulla ovat asiakkaalle näkyvät virstanpylväät (`ProjectMilestone`). Projektiaikataulu ei ole kytköksissä tuotannon Ganttiin.
 
 ### Projektinhallinta: aikataulu → hankinnat → tehtäväluettelo
 
@@ -96,7 +115,7 @@ Lähde on projektinhallinnan Excel (Firstcamp iglut: välilehdet aikataulu ja Ha
 - `phase` etenee järjestyksessä Aineisto → Pyyntö → Tarjous → Vertailu → Sopimus → Toimitus → Valmis (tai Ei tarvita). Tehtäväluettelo (`/projektit/[id]/tehtavat`) näyttää nykyisen vaiheen takarajan, ja siinä on mukana myös omat tehtävät (`ProjectTodo`). Luettelon voi ryhmitellä henkilöittäin (`User`, `/henkilot`).
 - Tiedonsiirto tuo projektin Excel-välilehdet sellaisenaan: otsikkorivi ja välilehti tunnistetaan automaattisesti, ja projekti annetaan oletusarvona (`oletukset`).
 
-Projektinhallinnan Server Actions (`src/lib/actions/projektinhallinta.ts`) palaavat lomakkeen `paluu`-kentän osoitteeseen. Virheet välitetään `?virhe=`-parametrina, jonka sivu näyttää `<Virhe>`-komponentilla. Muokkauslomake avataan parametrilla `?muokkaa=<id>`.
+Projektinhallinnan, rakennusten ja rakenneosakirjaston Server Actions (`src/lib/actions/projektinhallinta.ts`, `rakennukset.ts`, `rakenteet.ts`) palaavat lomakkeen `paluu`-kentän osoitteeseen. Yhteiset apurit `kentat`, `jasenna` ja `palaa` ovat tiedostossa `src/lib/lomake.ts`. Virheet välitetään `?virhe=`-parametrina, jonka sivu näyttää `<Virhe>`-komponentilla. Muokkauslomake avataan parametrilla `?muokkaa=<id>` (rakennuksen elementit: `?elementti=<id>`). `paluu` saa sisältää ankkurin (`#elementit`): se säilyy onnistuneessa tallennuksessa, mutta virheen kanssa palataan sivun alkuun.
 
 Tuotannon ohjaus on oma osionsa: jokaisella projektilla on Sharepoint-tuotantokansio (`ProductionFolder`), jonka alla ovat työmääräimet (`WorkOrder`) ja piirustukset (`Drawing`).
 
@@ -106,4 +125,6 @@ Tuotannon ohjaus on oma osionsa: jokaisella projektilla on Sharepoint-tuotantoka
 - Tiedostot (`QaDocument`, `Drawing`, tarjousten liitteet) ovat pelkkiä `fileUrl`-tekstikenttiä. `ProductionFolder.sharepointUrl` on pelkkä linkki; Microsoft Graph -integraatiota ei ole.
 - `TuotantoaikatauluClient.tsx`:n Gantt on yksinkertaistettu: ei kuukausi- tai viikko-otsikoita, ja tooltipit ovat pelkkiä `title`-attribuutteja.
 - Validointityyli on epäyhtenäinen: rajapintareiteillä jaetut skeemat `validation.ts`:ssä, Server Actionseissa inline-zod.
+- BIM-integraatio on tiedostopohjainen: määräluettelo tuodaan Excelinä tai CSV:nä. IFC-tiedostoa ei lueta suoraan, eikä mallipalveluiden (Trimble Connect, Dalux) rajapintoja käytetä.
+- Rakenneosaa ei voi poistaa, vain merkitä pois käytöstä (`active`), koska määräluettelon rivit viittaavat siihen.
 - Projektin Excelin uudelleentuonti asettaa hankintojen vaiheet Excelin x-merkintöjen mukaisiksi, joten järjestelmässä eteenpäin siirretyt vaiheet voivat palata taaksepäin. Ks. README:n avoin kysymys.

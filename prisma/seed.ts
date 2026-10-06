@@ -29,15 +29,20 @@ async function main() {
   await prisma.procurementPlan.deleteMany();
   await prisma.projectMilestone.deleteMany();
   await prisma.orderConfirmation.deleteMany();
+  await prisma.complaint.deleteMany();
+  await prisma.qaChecklistItem.deleteMany();
+  await prisma.qaChecklist.deleteMany();
+  await prisma.qaDocument.deleteMany();
+  await prisma.productionElement.deleteMany();
+  await prisma.buildingPart.deleteMany();
+  await prisma.building.deleteMany();
+  await prisma.structureMaterial.deleteMany();
+  await prisma.structureType.deleteMany();
   await prisma.project.deleteMany();
   await prisma.offer.deleteMany();
   await prisma.priceListItem.deleteMany();
   await prisma.priceList.deleteMany();
   await prisma.product.deleteMany();
-  await prisma.complaint.deleteMany();
-  await prisma.qaChecklistItem.deleteMany();
-  await prisma.qaChecklist.deleteMany();
-  await prisma.qaDocument.deleteMany();
   await prisma.customer.deleteMany();
 
   console.log("Luodaan asiakkaat...");
@@ -99,29 +104,176 @@ async function main() {
   });
 
   console.log("Luodaan esimerkkinimikkeistö ja hinnasto...");
-  const product1 = await prisma.product.create({
-    data: { code: "TUOTE-001", name: "Moduulielementti A", unit: "kpl" },
+  // Materiaalinimikkeet ja esimerkkihinnat (alv 0 %, senttiä per yksikkö).
+  const NIMIKKEET = [
+    { code: "RUNKO-48x198", name: "Runkopuu 48x198 C24", unit: "jm", hinta: 320 },
+    { code: "RUNKO-48x148", name: "Runkopuu 48x148 C24", unit: "jm", hinta: 240 },
+    { code: "VILLA-200", name: "Mineraalivilla 200 mm", unit: "m2", hinta: 950 },
+    { code: "VILLA-100", name: "Mineraalivilla 100 mm", unit: "m2", hinta: 520 },
+    { code: "KIPSI-13", name: "Kipsilevy 13 mm", unit: "m2", hinta: 580 },
+    { code: "TUULISUOJA-25", name: "Tuulensuojalevy 25 mm", unit: "m2", hinta: 890 },
+    { code: "HOYRYNSULKU", name: "Höyrynsulkumuovi", unit: "m2", hinta: 90 },
+    { code: "VERHOUS-UYK", name: "Ulkoverhouslauta UYK 28x195", unit: "m2", hinta: 1450 },
+    { code: "IKKUNA-1210", name: "Ikkuna MSE 12x10", unit: "kpl", hinta: 42000 },
+    { code: "OVI-ULKO", name: "Ulko-ovi lämpöeristetty", unit: "kpl", hinta: 98000 },
+    { code: "ILP-35", name: "Ilmalämpöpumppu 3,5 kW", unit: "kpl", hinta: 125000 },
+  ];
+  const nimike = new Map<string, string>();
+  for (const n of NIMIKKEET) {
+    const p = await prisma.product.create({ data: { code: n.code, name: n.name, unit: n.unit } });
+    nimike.set(n.code, p.id);
+  }
+  const priceList = await prisma.priceList.create({
+    data: { name: "Vakiohinnasto 2026", validFrom: new Date("2026-01-01"), laborHourCents: 5500 },
   });
-  const product2 = await prisma.product.create({
-    data: { code: "TUOTE-002", name: "Moduulielementti B", unit: "kpl" },
-  });
-  const priceList = await prisma.priceList.create({ data: { name: "Vakiohinnasto 2026" } });
   await prisma.priceListItem.createMany({
-    data: [
-      { priceListId: priceList.id, productId: product1.id, unitPriceCents: 450000 },
-      { priceListId: priceList.id, productId: product2.id, unitPriceCents: 620000 },
-    ],
+    data: NIMIKKEET.map((n) => ({ priceListId: priceList.id, productId: nimike.get(n.code)!, unitPriceCents: n.hinta })),
   });
 
-  console.log("Luodaan esimerkkitarkastuslista...");
+  console.log("Luodaan rakenneosakirjasto (rakenteet ja ostonimikkeet)...");
+  // [nimikekoodi, menekki per rakennetyypin yksikkö, hukka-%]
+  type Materiaali = [string, number, number];
+  // Ostonimike = valmiina ostettava osa: täsmälleen yksi nimike × 1, tunnit = asennus.
+  const RAKENNEOSAT: {
+    code: string;
+    name: string;
+    kind?: "OSTONIMIKE";
+    category: "ULKOSEINA" | "VALISEINA" | "ALAPOHJA" | "VALIPOHJA" | "YLAPOHJA" | "IKKUNA" | "OVI" | "TEKNIIKKA";
+    unit: string;
+    tunnit: number;
+    bim?: string;
+    materiaalit: Materiaali[];
+  }[] = [
+    {
+      code: "US-1",
+      name: "Ulkoseinä 200 mm, puurunko, UYK-verhous",
+      category: "ULKOSEINA",
+      unit: "m2",
+      tunnit: 0.9,
+      bim: "Basic Wall:US-1 200 puurunko",
+      materiaalit: [["RUNKO-48x198", 2.6, 10], ["VILLA-200", 1, 5], ["TUULISUOJA-25", 1, 5], ["HOYRYNSULKU", 1.1, 0], ["KIPSI-13", 1, 8], ["VERHOUS-UYK", 1, 10]],
+    },
+    {
+      code: "VS-1",
+      name: "Väliseinä 100 mm, kipsilevy molemmin puolin",
+      category: "VALISEINA",
+      unit: "m2",
+      tunnit: 0.5,
+      bim: "Basic Wall:VS-1 100",
+      materiaalit: [["RUNKO-48x148", 1.8, 10], ["VILLA-100", 1, 5], ["KIPSI-13", 2, 8]],
+    },
+    {
+      code: "AP-1",
+      name: "Alapohja, puurunkoinen tuuletettu",
+      category: "ALAPOHJA",
+      unit: "m2",
+      tunnit: 0.6,
+      bim: "Floor:AP-1",
+      materiaalit: [["RUNKO-48x198", 2, 10], ["VILLA-200", 1, 5], ["TUULISUOJA-25", 1, 5]],
+    },
+    {
+      code: "YP-1",
+      name: "Yläpohja, kattoristikko ja 300 mm eriste",
+      category: "YLAPOHJA",
+      unit: "m2",
+      tunnit: 0.6,
+      bim: "Roof:YP-1",
+      materiaalit: [["RUNKO-48x198", 1.8, 10], ["VILLA-200", 1.5, 5], ["HOYRYNSULKU", 1.1, 0], ["KIPSI-13", 1, 8]],
+    },
+    { code: "IK-1", name: "Ikkuna 12x10 asennettuna", kind: "OSTONIMIKE", category: "IKKUNA", unit: "kpl", tunnit: 1.5, bim: "Window:12x10", materiaalit: [["IKKUNA-1210", 1, 0]] },
+    { code: "UO-1", name: "Ulko-ovi asennettuna", kind: "OSTONIMIKE", category: "OVI", unit: "kpl", tunnit: 2, bim: "Door:UO-1", materiaalit: [["OVI-ULKO", 1, 0]] },
+    { code: "ILP-35", name: "Ilmalämpöpumppu 3,5 kW asennettuna", kind: "OSTONIMIKE", category: "TEKNIIKKA", unit: "kpl", tunnit: 3, materiaalit: [["ILP-35", 1, 0]] },
+  ];
+  const rakenneosa = new Map<string, string>();
+  for (const t of RAKENNEOSAT) {
+    const st = await prisma.structureType.create({
+      data: {
+        code: t.code,
+        name: t.name,
+        category: t.category,
+        unit: t.unit,
+        kind: t.kind,
+        laborHoursPerUnit: t.tunnit,
+        bimTypeName: t.bim,
+        materials: {
+          create: t.materiaalit.map(([koodi, menekki, hukka], i) => ({
+            productId: nimike.get(koodi)!,
+            quantityPerUnit: menekki,
+            wastePct: hukka,
+            seq: i + 1,
+          })),
+        },
+      },
+    });
+    rakenneosa.set(t.code, st.id);
+  }
+
+  // Paritalon määräluettelo: [rakenneosa, määrä, sijainti]
+  const PARITALO: [string, number, string | null][] = [
+    ["AP-1", 120, null],
+    ["US-1", 140, null],
+    ["VS-1", 60, null],
+    ["YP-1", 120, null],
+    ["IK-1", 10, null],
+    ["UO-1", 2, null],
+    ["ILP-35", 2, null],
+  ];
+  const osat = (rivit: [string, number, string | null][]) =>
+    rivit.map(([koodi, quantity, location], i) => ({ structureTypeId: rakenneosa.get(koodi)!, quantity, location, seq: i + 1 }));
+
+  console.log("Luodaan Srömin rakennukset ja elementit...");
+  const rakennusA = await prisma.building.create({
+    data: {
+      projectId: project.id,
+      code: "A",
+      name: "Paritalo A",
+      buildingType: "Paritalo",
+      grossAreaM2: 120,
+      status: "VALMISTUKSESSA",
+      seq: 1,
+      parts: { create: osat(PARITALO) },
+      elements: {
+        create: [
+          { code: "A-US-01", structureTypeId: rakenneosa.get("US-1"), quantity: 35, status: "TOIMITETTU", seq: 1 },
+          { code: "A-US-02", structureTypeId: rakenneosa.get("US-1"), quantity: 35, status: "VALMIS", seq: 2 },
+          { code: "A-US-03", structureTypeId: rakenneosa.get("US-1"), quantity: 35, status: "VALMISTUKSESSA", seq: 3 },
+          { code: "A-US-04", structureTypeId: rakenneosa.get("US-1"), quantity: 35, status: "SUUNNITTEILLA", seq: 4 },
+        ],
+      },
+    },
+    include: { elements: true },
+  });
+  await prisma.building.create({
+    data: { projectId: project.id, code: "B", name: "Paritalo B", buildingType: "Paritalo", grossAreaM2: 120, seq: 2, parts: { create: osat(PARITALO) } },
+  });
+  await prisma.productionScheduleItem.updateMany({ where: { projekti: "Sröm" }, data: { projectId: project.id, buildingId: rakennusA.id } });
+
+  console.log("Luodaan esimerkkitarkastuslistat...");
+  const KOHDAT = ["Mitat tarkistettu", "Pintakäsittely OK", "Pakkaus kunnossa"];
+  await prisma.qaChecklist.create({
+    data: { title: "Lähtötarkastus", isTemplate: true, items: { create: KOHDAT.map((label, i) => ({ label, seq: i + 1 })) } },
+  });
   await prisma.qaChecklist.create({
     data: {
-      title: "Lähtötarkastus",
-      items: {
+      title: "Lähtötarkastus – A-US-01",
+      buildingId: rakennusA.id,
+      elementId: rakennusA.elements.find((e) => e.code === "A-US-01")!.id,
+      items: { create: KOHDAT.map((label, i) => ({ label, seq: i + 1, passed: true })) },
+    },
+  });
+
+  console.log("Luodaan esimerkkitarjous rakennuksineen...");
+  await prisma.offer.create({
+    data: {
+      customerId: customers.get("First Camp")!,
+      title: "Camp Ripan laajennus: 2 majoitusrakennusta",
+      status: "LAHETETTY",
+      amountCents: 4600000,
+      validUntil: new Date("2026-12-31"),
+      buildings: {
         create: [
-          { label: "Mitat tarkistettu", seq: 1 },
-          { label: "Pintakäsittely OK", seq: 2 },
-          { label: "Pakkaus kunnossa", seq: 3 },
+          { code: "MOD4", name: "Majoitusrakennus", buildingType: "Majoitusmoduuli", grossAreaM2: 36, seq: 1, parts: { create: osat([["AP-1", 36, null], ["US-1", 85, null], ["VS-1", 30, null], ["YP-1", 36, null], ["IK-1", 4, null], ["UO-1", 1, null]]) } },
+          { code: "MOD5", name: "Majoitusrakennus", buildingType: "Majoitusmoduuli", grossAreaM2: 36, seq: 2, parts: { create: osat([["AP-1", 36, null], ["US-1", 85, null], ["VS-1", 30, null], ["YP-1", 36, null], ["IK-1", 4, null], ["UO-1", 1, null]]) } },
         ],
       },
     },

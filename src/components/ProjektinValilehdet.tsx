@@ -4,21 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 // Projektin alasivujen välilehdet. Rakennekaavion solmut Yhteenvetosivu,
-// Projektiaikataulu ja Hankintasuunnitelma + Tehtäväluettelo (kaavion
-// ulkopuolinen lisäys, ks. docs/ARKKITEHTUURI.md).
+// Projektiaikataulu ja Hankintasuunnitelma sekä kaavion ulkopuoliset
+// lisäykset Rakennukset, Materiaalitarve ja Tehtäväluettelo (ks.
+// docs/ARKKITEHTUURI.md).
 export function ProjektinValilehdet({ projectId }: { projectId: string }) {
   const polku = usePathname();
-  const pohja = `/asiakkuuksien-hallinta/projektit/${projectId}`;
+  const pohja = `/projektit/${projectId}`;
   const valilehdet = [
     { nimi: "Yhteenveto", href: pohja },
+    { nimi: "Rakennukset", href: `${pohja}/rakennukset` },
     { nimi: "Projektiaikataulu", href: `${pohja}/aikataulu` },
     { nimi: "Hankintasuunnitelma", href: `${pohja}/hankintasuunnitelma` },
+    { nimi: "Materiaalitarve", href: `${pohja}/materiaalitarve` },
     { nimi: "Tehtäväluettelo", href: `${pohja}/tehtavat` },
   ];
   return (
     <nav className="flex gap-1 border-b border-line">
       {valilehdet.map((v) => {
-        const aktiivinen = polku === v.href;
+        // Rakennuksen sivu (rakennukset/[id]) pitää Rakennukset-välilehden aktiivisena.
+        const aktiivinen = v.href === pohja ? polku === v.href : polku === v.href || polku.startsWith(v.href + "/");
         return (
           <Link
             key={v.href}

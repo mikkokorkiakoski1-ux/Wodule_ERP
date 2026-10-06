@@ -55,7 +55,7 @@ export default async function TuotannonOhjausPage() {
             {projects.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-6 text-center text-ink-muted">
-                  Ei vielä projekteja. Lisää projekti Asiakkuuksien hallinnassa.
+                  Ei vielä projekteja. Lisää projekti Projektit-osiossa.
                 </td>
               </tr>
             )}

@@ -4,29 +4,37 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 async function getCounts() {
-  const [customers, projects, complaintsOpen, products, checklists, folders] = await Promise.all([
+  const [customers, projects, buildings, complaintsOpen, products, checklists, folders] = await Promise.all([
     prisma.customer.count(),
     prisma.project.count(),
+    prisma.building.count({ where: { projectId: { not: null } } }),
     prisma.complaint.count({ where: { status: { in: ["AVOIN", "SELVITYKSESSA"] } } }),
     prisma.product.count(),
     prisma.qaChecklist.count(),
     prisma.productionFolder.count(),
   ]);
-  return { customers, projects, complaintsOpen, products, checklists, folders };
+  return { customers, projects, buildings, complaintsOpen, products, checklists, folders };
 }
 
 const TILES = [
   {
     title: "Asiakkuuksien hallinta",
     href: "/asiakkuuksien-hallinta",
-    desc: "Tarjoukset, projektit, tilausvahvistukset, tuotantoaikataulu",
+    desc: "Asiakkaat ja tarjoukset",
     key: "customers" as const,
     label: "asiakasta",
   },
   {
+    title: "Projektit",
+    href: "/projektit",
+    desc: "Pääobjekti: rakennukset, aikataulu, hankinnat, tuotantoaikataulu",
+    key: "projects" as const,
+    label: "projektia",
+  },
+  {
     title: "Tuotehallinta",
     href: "/tuotehallinta",
-    desc: "Nimikkeistö ja hinnastot",
+    desc: "Nimikkeistö, rakenneosat ja hinnastot",
     key: "products" as const,
     label: "nimikettä",
   },

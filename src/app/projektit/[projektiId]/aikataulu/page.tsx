@@ -87,7 +87,7 @@ export default async function ProjektiaikatauluPage({
   searchParams: { virhe?: string; muokkaa?: string; uusi?: string };
 }) {
   const projectId = params.projektiId;
-  const polku = `/asiakkuuksien-hallinta/projektit/${projectId}/aikataulu`;
+  const polku = `/projektit/${projectId}/aikataulu`;
   const tanaan = new Date();
   const [tehtavat, virstanpylvaat, hankintamaarat] = await Promise.all([
     haeAikataulu(projectId, tanaan),
@@ -168,7 +168,7 @@ export default async function ProjektiaikatauluPage({
                 </td>
                 <td className="p-3 text-right font-mono">
                   {hankintoja.get(t.code) ? (
-                    <Link href={`/asiakkuuksien-hallinta/projektit/${projectId}/hankintasuunnitelma?tehtava=${t.code}`} className="underline">
+                    <Link href={`/projektit/${projectId}/hankintasuunnitelma?tehtava=${t.code}`} className="underline">
                       {hankintoja.get(t.code)}
                     </Link>
                   ) : (

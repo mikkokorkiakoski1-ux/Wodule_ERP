@@ -5,7 +5,8 @@ import { createOrderConfirmation } from "@/lib/actions/asiakkuudet";
 import { lisaaJasen, poistaJasen } from "@/lib/actions/projektinhallinta";
 import { ORGANISAATION_ROOLIT, haeHankinnat, haeTehtavalista } from "@/lib/projektinhallinta";
 import { onPaattynyt, type Vaihe } from "@/lib/hankinta";
-import { euro, pvm } from "@/lib/muotoilu";
+import { euro, maara, pvm } from "@/lib/muotoilu";
+import { laskeRakennukset } from "@/lib/rakennukset";
 import { HenkiloValinta, Takaraja, Virhe } from "@/components/projektinhallinta";
 
 export const dynamic = "force-dynamic";
@@ -35,12 +36,18 @@ export default async function ProjektiYhteenvetoPage({
   });
   if (!project) notFound();
 
-  const polku = `/asiakkuuksien-hallinta/projektit/${project.id}`;
-  const [{ aikataulu, rivit: hankinnat }, tehtavat, henkilot] = await Promise.all([
+  const polku = `/projektit/${project.id}`;
+  const [{ aikataulu, rivit: hankinnat }, tehtavat, henkilot, rakennukset, elementit] = await Promise.all([
     haeHankinnat(project.id),
     haeTehtavalista({ projectId: project.id }),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
+    laskeRakennukset({ projectId: project.id }),
+    prisma.productionElement.groupBy({ by: ["status"], where: { building: { projectId: project.id } }, _count: true }),
   ]);
+  const elementteja = elementit.reduce((s, e) => s + e._count, 0);
+  const valmiitElementit = elementit
+    .filter((e) => ["VALMIS", "TOIMITETTU", "ASENNETTU"].includes(e.status))
+    .reduce((s, e) => s + e._count, 0);
 
   const aloitukset = aikataulu.map((t) => t.aloitus).filter((d): d is Date => !!d);
   const ennusteet = aikataulu.map((t) => t.ennuste).filter((d): d is Date => !!d);
@@ -168,8 +175,18 @@ export default async function ProjektiYhteenvetoPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Link href="/asiakkuuksien-hallinta/projektit/tuotantoaikataulu" className="card p-4 hover:border-accent">
+      <div className="grid grid-cols-3 gap-4">
+        <Link href={`${polku}/rakennukset`} className="card p-4 hover:border-accent">
+          <div className="font-semibold">Rakennukset</div>
+          <div className="text-sm text-ink-2 mt-1">
+            {rakennukset.rakennukset.length} rakennusta
+            {elementteja > 0 && <> · elementit {valmiitElementit} / {elementteja} valmiina</>}
+          </div>
+          <div className="text-sm text-ink-2">
+            Rakenteista {maara(rakennukset.kustannus.tunnit, 0)} h · omakustannus {euro(rakennukset.kustannus.yhteensaSentit)}
+          </div>
+        </Link>
+        <Link href="/projektit/tuotantoaikataulu" className="card p-4 hover:border-accent">
           <div className="font-semibold">Tuotantoaikataulu projektit</div>
           <div className="text-sm text-ink-2 mt-1">
             Koko tuotannon Gantt-aikajana · {project.productionScheduleItems.length} tämän projektin riviä
