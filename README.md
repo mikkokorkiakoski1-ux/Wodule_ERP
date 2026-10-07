@@ -106,9 +106,23 @@ BIM-tyyppinimestä, ja GlobalId päivittää uusintatuonnissa saman rivin.
 - BIM-valmius: määräluettelon tuonti, GUID:t rakennuksille, määräluettelon riveille ja elementeille, BIM-mallin linkki.
 - `docs/rakennekaavio.jpg` pitää päivittää käsin uutta rakennetta vastaavaksi.
 
-Seuraavaksi BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista)
-tai mallipalvelun rajapinta (Trimble Connect, Dalux), jotta määräluettelon
-vientiä ei tarvita.
+Tehty ja pushattu (commit `a3a6905`). Testattu yksikkötesteillä (74) ja
+päästä päähän erillistä kokeilukantaa vasten (lomakkeet, muunnos projektiksi,
+hankinnat, BIM-tuonti, ostonimikkeet). Ei vielä kokeiltu selaimessa oikealla
+datalla.
+
+Seuraavaksi (tauon jälkeen):
+
+1. Täytä oikeaan kantaan rakenneosakirjasto (rakenteet, materiaalit,
+   ostonimikkeet) ja hinnaston tuntihinta, käsin tai tiedonsiirrolla. Seedin
+   ajaminen tyhjentäisi kannan.
+2. Kokeile kulku selaimessa: tarjous → rakennukset ja määräluettelo → kate →
+   Muuta projektiksi → elementit → materiaalitarve → hankintasuunnitelma.
+   Korjaa havainnot.
+3. Päivitä `docs/rakennekaavio.jpg`.
+4. BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista) tai
+   mallipalvelun rajapinta (Trimble Connect, Dalux), jotta määräluettelon
+   vientiä ei tarvita.
 
 Aiemmin: kokeile uusia projektisivuja selaimessa oikealla projektilla
 (tehtävien jako henkilöille, vaiheiden siirto, Excel-tuonti) ja korjaa
