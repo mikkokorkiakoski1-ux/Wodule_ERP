@@ -1,7 +1,7 @@
 # Arkkitehtuuri
 
 Tämä sovellus on toteutettu suoraan liitteenä olleen sivukartta-/rakennekaavion
-(`docs/rakennekaavio.jpg`) mukaan. Kaavio on ainoa lähde sille, mitä osioita ja
+(nykyinen: `docs/rakennekaavio.png`) mukaan. Kaavio on ainoa lähde sille, mitä osioita ja
 alasivuja järjestelmässä on - jos rakenne muuttuu, päivitä ensin kaavio, sitten
 tämä taulukko ja `src/components/SectionNav.tsx`.
 
@@ -45,6 +45,14 @@ työtuntinormi) tai **ostonimike** (valmiina ostettava osa, esim. ilmalämpöpum
 nimike × 1, työtunnit = asennus). Käyttöliittymän termit: *rakenneosa* = `StructureType`,
 *määräluettelon rivi* = `BuildingPart`.
 
+**Tarjouslaskenta.** Woodcomp Modulesin kustannusarviolaskuri on portattu
+tiedostoon `src/lib/tarjouslaskenta.ts` (testit vertaavat alkuperäiseen). Laskuri laskee
+rakennuksen päämitoista, katosta, ikkunoista, märkätiloista ja varusteista 104
+laskentariviä 29 litteraan. Jokainen rivi on kirjastossa kiinteähintainen rakenneosa
+(`laskuriAvain`), joten hinnat ovat muokattavissa ilman koodimuutosta. Tallennettuna
+rivit tulevat rakennuksen määräluetteloon (source LASKURI), ja määräluettelo,
+omakustannus, kate ja hankinnat lajitellaan litteroittain.
+
 Määräluetteloista lasketaan (`src/lib/rakenteet.ts`, testit `rakenteet.test.ts`):
 
 - **materiaalitarve** nimikkeittäin: määrä x menekki x (1 + hukka-%)
@@ -71,26 +79,28 @@ ja `BuildingPart.bimGuid` päivittää uusintatuonnissa saman rivin
 
 Projektit nostettiin Asiakkuuksien hallinnan alta omaksi pääosiokseen
 (`/projektit`). Vanhat `/asiakkuuksien-hallinta/projektit/**`-osoitteet
-ohjataan uusiin (`next.config.mjs`). **`docs/rakennekaavio.jpg` pitää
-päivittää käsin vastaamaan tätä taulukkoa.**
+ohjataan uusiin (`next.config.mjs`). Kaavio generoidaan tiedostosta
+`docs/rakennekaavio.mjs` (ks. CLAUDE.md); oranssit solmut on lisätty
+alkuperäisen kaavion (`docs/rakennekaavio-alkuperainen.jpg`) jälkeen.
 
 | Kaavion solmu | Reitti | Prisma-malli(t) |
 |---|---|---|
 | Pääikkuna | `/` | (koosteen laskee useasta mallista) |
 | Asiakkuuksien hallinta | `/asiakkuuksien-hallinta` | `Customer` |
-| └─ Tarjoukset | `/asiakkuuksien-hallinta/tarjoukset`, `/[id]` (sisältö, kate, Muuta projektiksi) | `Offer`, `Building` (offerId) |
+| ├─ Tarjoukset | `/asiakkuuksien-hallinta/tarjoukset`, `/[id]` (sisältö, kate, Muuta projektiksi) | `Offer`, `Building` (offerId) |
+| └─ Tarjouslaskenta | `/asiakkuuksien-hallinta/tarjouslaskenta` (`?rakennus=<id>` tallentaa rakennukselle) | laskettu (`src/lib/tarjouslaskenta.ts`), tallennus `Building.laskentaSyote` + `BuildingPart` (source LASKURI) |
 | Projektit | `/projektit` | `Project` |
 | ├─ Tuotantoaikataulu projektit | `/projektit/tuotantoaikataulu` | `ProductionScheduleItem` |
 | └─ Projekti 1, Projekti 2, ... | `/projektit/[id]` | `Project` (yksi rivi per projekti) |
 | &nbsp;&nbsp;&nbsp;├─ Yhteenvetosivu (+ Tilausvahvistus) | `/projektit/[id]` | koostesivu, `OrderConfirmation`, `ProjectMember` |
-| &nbsp;&nbsp;&nbsp;├─ *Rakennukset (ei kaaviossa)* | `/projektit/[id]/rakennukset`, `/[rakennusId]` | `Building`, `BuildingPart`, `ProductionElement` |
+| &nbsp;&nbsp;&nbsp;├─ Rakennukset | `/projektit/[id]/rakennukset`, `/[rakennusId]` | `Building`, `BuildingPart`, `ProductionElement` |
 | &nbsp;&nbsp;&nbsp;├─ Projektiaikataulu | `/projektit/[id]/aikataulu` | `ScheduleTask`, `ProjectMilestone` |
 | &nbsp;&nbsp;&nbsp;├─ Hankintasuunnitelma | `/projektit/[id]/hankintasuunnitelma` | `ProcurementPlan`, `ProcurementItem` |
-| &nbsp;&nbsp;&nbsp;├─ *Materiaalitarve (ei kaaviossa)* | `/projektit/[id]/materiaalitarve` | laskettu `BuildingPart`ista |
-| &nbsp;&nbsp;&nbsp;└─ *Tehtäväluettelo (ei kaaviossa)* | `/projektit/[id]/tehtavat` | `ProjectTodo` + `ProcurementItem` |
+| &nbsp;&nbsp;&nbsp;├─ Materiaalitarve | `/projektit/[id]/materiaalitarve` | laskettu `BuildingPart`ista |
+| &nbsp;&nbsp;&nbsp;└─ Tehtäväluettelo | `/projektit/[id]/tehtavat` | `ProjectTodo` + `ProcurementItem` |
 | Tuotehallinta | `/tuotehallinta` | - |
 | ├─ Nimikkeistö (Tuote1, Tuote2, ...) | `/tuotehallinta/nimikkeisto` | `Product` |
-| ├─ *Rakenneosat (ei kaaviossa)* | `/tuotehallinta/rakenneosat`, `/[id]` (vanha `/rakennetyypit` ohjataan) | `StructureType` (rakenne tai ostonimike), `StructureMaterial` |
+| ├─ Rakenneosat (Litterat, Rakenteet, Ostonimikkeet) | `/tuotehallinta/rakenneosat`, `/[id]` (vanha `/rakennetyypit` ohjataan) | `Littera`, `StructureType` (rakenne tai ostonimike; kiinteä hinta, kustannuslaji, laskurin avain), `StructureMaterial` |
 | └─ Hinnastot | `/tuotehallinta/hinnastot` | `PriceList` (+ tuntihinta), `PriceListItem` |
 | Reklamaatiot | `/reklamaatiot` | `Complaint` (kohdistus projekti/rakennus/elementti) |
 | Laadunvarmistus | `/laadunvarmistus` | - |
@@ -101,7 +111,7 @@ päivittää käsin vastaamaan tätä taulukkoa.**
 | &nbsp;&nbsp;&nbsp;├─ Työmääräimet | `/tuotannon-ohjaus/[id]/tyomaaraimet` | `WorkOrder` (valinnainen rakennus/elementti) |
 | &nbsp;&nbsp;&nbsp;└─ Piirustukset | `/tuotannon-ohjaus/[id]/piirustukset` | `Drawing` (valinnainen rakennus/elementti) |
 
-**Kaavion ulkopuoliset työkalut** (navigaatiossa omana Järjestelmä-ryhmänään):
+**Järjestelmä** (kaaviossa omana haaranaan, navigaatiossa sivupalkin alaosassa):
 
 | Työkalu | Reitti | Prisma-malli(t) |
 |---|---|---|
@@ -110,9 +120,7 @@ päivittää käsin vastaamaan tätä taulukkoa.**
 
 Projektin alasivuilla on yhteinen layout (`projektit/[projektiId]/layout.tsx`):
 otsikko ja välilehdet Yhteenveto, Rakennukset, Projektiaikataulu,
-Hankintasuunnitelma, Materiaalitarve ja Tehtäväluettelo. Kursivoidut rivit
-eivät ole kaavion solmuja. Jos ne halutaan kaavioon, `docs/rakennekaavio.jpg`
-pitää päivittää käsin.
+Hankintasuunnitelma, Materiaalitarve ja Tehtäväluettelo.
 
 Tiedonsiirto tuo ja vie kaikkien viiden osion tietoja (CSV, Excel, JSON).
 Jokainen tuotava tietotyyppi on "kohde" tiedostossa
@@ -159,7 +167,9 @@ src/
     projektiaikataulu.ts    # Projektiaikataulun laskenta (edeltäjät tunnuksina)
     hankinta.ts             # Hankintojen vaiheet ja takarajat
     projektinhallinta.ts    # Aikataulun, hankintojen ja tehtäväluettelon tiedonhaku
-    rakenteet.ts            # Rakenteiden laskenta: materiaalitarve, tunnit, omakustannus (puhdas)
+    rakenteet.ts            # Rakenteiden laskenta: materiaalitarve, kiinteät rivit, tunnit, omakustannus (puhdas)
+    tarjouslaskenta.ts      # Tarjouslaskuri: määräkaavat, laskentarivit, litterat, katteet (puhdas, portattu)
+    tarjouslaskuri-kirjasto.ts # Laskurin rivit ja litterat rakenneosakirjastoon, kirjaston hinnat laskurille
     rakennukset.ts          # Rakennusten ja hinnaston tietokantahaut laskentaa varten
     lomake.ts               # Server Actionien lomakeapurit (kentat, jasenna, palaa)
     validation.ts           # Zod-skeemat API-reiteille
@@ -174,10 +184,13 @@ src/
     projektinhallinta.tsx    # Projektisivujen yhteiset palat (takaraja, virhe, Excel-tuonti)
     rakennukset.tsx          # Rakennuslomake, määräluettelo, kustannuserittely, materiaalitarve
     KohdeValinta.tsx         # Projekti/rakennus/elementti-valinta kohdistuksiin
+    TarjouslaskuriClient.tsx # Tarjouslaskurin syötteet, tulokset ja erittely litteroittain
 prisma/
   schema.prisma
   seed.ts                   # Siemendata, mm. sama 11 riviä kuin Artifact-työkalussa
 docs/
-  rakennekaavio.jpg         # Alkuperäinen liitteenä ollut kaavio
+  rakennekaavio.mjs         # Kaavion rakenne puuna; generoi rakennekaavio.svg
+  rakennekaavio.svg/.png    # Nykyinen rakennekaavio (generoitu)
+  rakennekaavio-alkuperainen.jpg  # Alkuperäinen liitteenä ollut kaavio
   ARKKITEHTUURI.md          # Tämä tiedosto
 ```

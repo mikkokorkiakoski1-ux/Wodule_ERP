@@ -11,7 +11,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { jasenna, kentat, luku, palaa, valinnainenTeksti } from "@/lib/lomake";
+import { jasenna, kentat, luku, palaa, valinnainenLuku, valinnainenTeksti } from "@/lib/lomake";
 
 const KATEGORIAT = [
   "ULKOSEINA",
@@ -47,6 +47,7 @@ const yhteiset = {
   laborHoursPerUnit: luku("Työtunnit").pipe(z.number().min(0, "Työtunnit eivät voi olla negatiivisia")),
   bimTypeName: valinnainenTeksti,
   active: z.string().optional().transform((v) => v !== "ei"),
+  litteraId: valinnainenTeksti,
 };
 
 /** Koodi ja BIM-tyyppinimi ovat yksilöllisiä koko kirjastossa. */
@@ -59,12 +60,19 @@ async function tarkistaYksilollisyys(d: { id?: string; code: string; bimTypeName
   }
 }
 
-const rakenneInput = z.object({ ...yhteiset, unit: z.string().trim().default("m2") });
+const rakenneInput = z.object({
+  ...yhteiset,
+  unit: z.string().trim().default("m2"),
+  // Kiinteä yksikköhinta euroina (esim. tarjouslaskurin rivit). Tyhjä = hinta materiaaliluettelosta.
+  unitPriceEuros: valinnainenLuku.pipe(z.number().min(0, "Yksikköhinta ei voi olla negatiivinen").nullable()),
+  costType: z.enum(["MATERIAALI", "TEHDASTYO", "ALIURAKKA"]).default("MATERIAALI"),
+});
 
 /** Oma vakiorakenne (materiaaliluettelo lisätään rakenneosan sivulla). */
 export async function tallennaRakenne(formData: FormData) {
   const k = kentat(formData);
-  const { id, ...data } = jasenna(rakenneInput, { laborHoursPerUnit: "0", ...k }, k.paluu);
+  const { id, unitPriceEuros, ...d } = jasenna(rakenneInput, { laborHoursPerUnit: "0", ...k }, k.paluu);
+  const data = { ...d, unitPriceCents: unitPriceEuros === null ? null : Math.round(unitPriceEuros * 100 * 1e6) / 1e6 };
   await tarkistaYksilollisyys({ id, ...data }, k.paluu);
   const tallennettu = id
     ? await prisma.structureType.update({ where: { id }, data })
@@ -88,7 +96,8 @@ export async function tallennaOstonimike(formData: FormData) {
   const k = kentat(formData);
   const { id, productId, ...d } = jasenna(ostonimikeInput, { laborHoursPerUnit: "0", ...k }, k.paluu);
   const nimike = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
-  const data = { ...d, code: d.code ?? nimike.code.toUpperCase(), name: d.name || nimike.name, unit: nimike.unit, kind: "OSTONIMIKE" as const };
+  // Ostonimikkeen hinta tulee nimikkeen hinnastosta, joten kiinteää hintaa ei käytetä.
+  const data = { ...d, code: d.code ?? nimike.code.toUpperCase(), name: d.name || nimike.name, unit: nimike.unit, kind: "OSTONIMIKE" as const, unitPriceCents: null, costType: "MATERIAALI" as const };
   await tarkistaYksilollisyys({ id, ...data }, k.paluu);
 
   const tallennettu = await prisma.$transaction(async (tx) => {
@@ -134,5 +143,19 @@ export async function poistaRakenneosanMateriaali(formData: FormData) {
   const k = kentat(formData);
   const m = await prisma.structureMaterial.delete({ where: { id: k.id! } });
   paivita(m.structureTypeId);
+  palaa(k.paluu);
+}
+
+const litteraInput = z.object({
+  code: z.string().trim().min(1, "Litteran koodi on pakollinen").max(20),
+  name: z.string().trim().min(1, "Litteran nimi on pakollinen"),
+});
+
+/** Lisää litteran tai päivittää saman koodin litteran nimen. */
+export async function tallennaLittera(formData: FormData) {
+  const k = kentat(formData);
+  const d = jasenna(litteraInput, k, k.paluu);
+  await prisma.littera.upsert({ where: { code: d.code }, create: d, update: { name: d.name } });
+  paivita();
   palaa(k.paluu);
 }

@@ -1,7 +1,7 @@
 // Toiminnanohjausjärjestelmän tietomalli.
 //
-// Rakenne noudattaa liitteenä olleen kaavion (docs/rakennekaavio.jpg) viittä
-// pääosiota. Katso docs/ARKKITEHTUURI.md kaavion ja mallien välisestä
+// Rakenne noudattaa rakennekaavion (docs/rakennekaavio.png) pääosioita
+// (Projektit omana osionaan). Katso docs/ARKKITEHTUURI.md kaavion ja mallien välisestä
 // vastaavuustaulukosta.
 //
 //   1. Asiakkuuksien hallinta  -> Customer, Offer
@@ -235,6 +235,9 @@ model ProcurementItem {
   // Nimike, jos rivi on luotu rakenteiden materiaalitarpeesta (tai liitetty käsin).
   productId         String?
   product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  // Rakenneosa, jos rivi on luotu kiinteähintaisista määräluettelon riveistä.
+  structureTypeId   String?
+  structureType     StructureType?   @relation(fields: [structureTypeId], references: [id], onDelete: SetNull)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -611,14 +614,48 @@ model StructureType {
   // jolla mallin määräluettelon rivi tunnistetaan tähän rakenneosaan.
   bimTypeName       String?           @unique
   active            Boolean           @default(true)
+  // Littera (Talo 80), jonka mukaan rakennusten määräluettelot ja
+  // hankinnat ryhmitellään.
+  litteraId         String?
+  littera           Littera?          @relation(fields: [litteraId], references: [id], onDelete: SetNull)
+  // Kiinteä yksikköhinta senteissä (desimaalit sallittu, koska laskurin
+  // yksikköhinnat ovat esim. 19,684 €). Jos annettu, rivin hinta on
+  // määrä × tämä eikä materiaaliluettelosta laskettu.
+  unitPriceCents    Float?
+  // Kiinteän hinnan kustannuslaji (tehdastyö ja aliurakka eritellään).
+  costType          CostType          @default(MATERIAALI)
+  // Tarjouslaskurin laskentarivin avain (src/lib/tarjouslaskenta.ts), esim. "3500-01".
+  laskuriAvain      String?           @unique
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  materials StructureMaterial[]
-  parts     BuildingPart[]
-  elements  ProductionElement[]
+  materials        StructureMaterial[]
+  parts            BuildingPart[]
+  elements         ProductionElement[]
+  procurementItems ProcurementItem[]
 
+  @@index([litteraId])
   @@map("structure_types")
+}
+
+enum CostType {
+  MATERIAALI // materiaali tai osto
+  TEHDASTYO // tehtaan oma työ (laskurin TEH-TYÖ)
+  ALIURAKKA // aliurakka (laskurin ALIURAKKA)
+}
+
+// Littera (Talo 80 -nimikkeistö), esim. "3500 Elementtituotanto". Rakenneosat,
+// määräluettelot ja hankinnat lajitellaan litteroittain. Tarjouslaskurin
+// litterat luodaan toiminnolla "Tuo tarjouslaskurin laskentarivit".
+model Littera {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  structureTypes StructureType[]
+
+  @@map("litterat")
 }
 
 // Rakenneosan materiaaliluettelo: nimike × menekki per rakenneosan yksikkö.
@@ -672,6 +709,9 @@ model Building {
   // BIM: linkki malliin (IFC-tiedosto, Trimble Connect, Dalux tms.) ja
   // IfcBuilding-olion GlobalId, jolla mallin tiedot kohdistetaan rakennukseen.
   bimModelUrl     String?
+  // Tarjouslaskurin syöte (src/lib/tarjouslaskenta.ts Syote), tallennetaan
+  // kun laskenta viedään rakennuksen määräluetteloon.
+  laskentaSyote   Json?
   bimGuid         String?
   seq             Int            @default(0)
   notes           String?
@@ -695,6 +735,7 @@ model Building {
 enum QuantitySource {
   KASIN
   BIM
+  LASKURI // tarjouslaskurin laskema; korvautuu, kun laskenta tallennetaan uudelleen
 }
 
 // Määräluettelon rivi: rakennuksessa on tätä rakenneosaa tämä määrä. Määrät

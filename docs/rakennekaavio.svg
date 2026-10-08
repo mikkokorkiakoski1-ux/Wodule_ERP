@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generoitu: node docs/rakennekaavio.mjs. Älä muokkaa käsin. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="2966" height="1500" viewBox="0 0 2966 1500" font-family="DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="16">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="60" y="66" font-size="26" font-weight="bold" fill="#0e4126">Wodule ERP – rakennekaavio</text>
+<text x="60" y="96" font-size="15" fill="#444">Päivitetty 8.10.2026. Projekti on pääobjekti: projekti → rakennus → määräluettelo (rakenneosa × määrä) ja elementit.</text>
+<g transform="translate(2526, 48)" font-size="15">
+  <rect width="22" height="22" fill="#1a6085"/><text x="32" y="16" fill="#222">Alkuperäinen kaavio</text>
+  <rect x="190" width="22" height="22" fill="#ef7a2f"/><text x="222" y="16" fill="#222">Uusi tai muuttunut</text>
+</g>
+<path d="M116,594H140M116,684H140M116,540V684M76,504H100M76,450V504M352,504H376M352,594H376M352,450V594M283,326V352M145,352H421M145,352V378M421,352V378M784,504H808M864,774H888M864,864H888M864,954H888M864,1044H888M864,720V1044M824,684H848M824,630V684M784,594H808M784,1134H808M784,1224H808M784,1314H808M784,1404H808M784,450V1404M913,326V352M657,352H1169M657,352V378M853,352V378M1169,352V378M1296,504H1320M1296,594H1320M1296,450V594M1532,504H1556M1532,594H1556M1532,684H1556M1532,450V684M1601,326V352M1365,352H1837M1365,352V378M1601,352V378M1837,352V378M2160,380H2184M2160,470H2184M2160,326V470M2476,560H2500M2476,650H2500M2476,506V650M2436,470H2460M2436,416V470M2396,380H2420M2396,326V380M2712,380H2736M2712,470H2736M2712,326V470M1532,202V228M283,228H2781M283,228V254M913,228V254M1601,228V254M2033,228V254M2229,228V254M2465,228V254M2781,228V254" stroke="#16506f" stroke-width="3" fill="none"/>
+<g fill="#ffffff">
+<rect x="60" y="378" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="145" y="414">Tarjoukset</tspan></text>
+<rect x="100" y="468" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="185" y="504">Tarjous 1</tspan></text>
+<rect x="140" y="558" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="225" y="584.5">Rakennukset ja</tspan><tspan x="225" y="603.5">määräluettelo</tspan></text>
+<rect x="140" y="648" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="225" y="674.5">Omakustannus</tspan><tspan x="225" y="693.5">ja kate</tspan></text>
+<rect x="336" y="378" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="421" y="414">Tarjouslaskenta</tspan></text>
+<rect x="376" y="468" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="494.5">Laskentarivit</tspan><tspan x="461" y="513.5">litteroittain</tspan></text>
+<rect x="376" y="558" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="584.5">Tallennus</tspan><tspan x="461" y="603.5">määräluetteloon</tspan></text>
+<rect x="198" y="254" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="283" y="280.5">Asiakkuuksien</tspan><tspan x="283" y="299.5">hallinta</tspan></text>
+<rect x="572" y="378" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="657" y="404.5">Tuotantoaikataulu</tspan><tspan x="657" y="423.5">projektit</tspan></text>
+<rect x="768" y="378" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="853" y="414">Projekti 1</tspan></text>
+<rect x="808" y="468" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="893" y="494.5">Yhteenvetosivu</tspan><tspan x="893" y="513.5">(tilausvahvistus)</tspan></text>
+<rect x="808" y="558" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="893" y="594">Rakennukset</tspan></text>
+<rect x="848" y="648" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="933" y="684">Rakennus A</tspan></text>
+<rect x="888" y="738" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="973" y="774">Määräluettelo</tspan></text>
+<rect x="888" y="828" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="973" y="864">Elementit</tspan></text>
+<rect x="888" y="918" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="973" y="954">Tarkastukset</tspan></text>
+<rect x="888" y="1008" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="973" y="1044">Reklamaatiot</tspan></text>
+<rect x="808" y="1098" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="893" y="1134">Projektiaikataulu</tspan></text>
+<rect x="808" y="1188" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="893" y="1214.5">Hankinta-</tspan><tspan x="893" y="1233.5">suunnitelma</tspan></text>
+<rect x="808" y="1278" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="893" y="1314">Materiaalitarve</tspan></text>
+<rect x="808" y="1368" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="893" y="1404">Tehtäväluettelo</tspan></text>
+<rect x="1084" y="378" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1169" y="414">Projekti 2</tspan></text>
+<rect x="828" y="254" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="913" y="290">Projektit</tspan></text>
+<rect x="1280" y="378" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1365" y="414">Nimikkeistö</tspan></text>
+<rect x="1320" y="468" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1405" y="504">Tuote1</tspan></text>
+<rect x="1320" y="558" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1405" y="594">Tuote2</tspan></text>
+<rect x="1516" y="378" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1601" y="414">Rakenneosat</tspan></text>
+<rect x="1556" y="468" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1641" y="494.5">Litterat</tspan><tspan x="1641" y="513.5">(Talo 80)</tspan></text>
+<rect x="1556" y="558" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1641" y="594">Rakenteet</tspan></text>
+<rect x="1556" y="648" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1641" y="684">Ostonimikkeet</tspan></text>
+<rect x="1752" y="378" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1837" y="414">Hinnastot</tspan></text>
+<rect x="1516" y="254" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1601" y="290">Tuotehallinta</tspan></text>
+<rect x="1948" y="254" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2033" y="290">Reklamaatiot</tspan></text>
+<rect x="2144" y="254" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2229" y="290">Laadunvarmistus</tspan></text>
+<rect x="2184" y="344" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2269" y="380">Tarkastuslistat</tspan></text>
+<rect x="2184" y="434" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2269" y="470">Dopit</tspan></text>
+<rect x="2380" y="254" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2465" y="290">Tuotannon ohjaus</tspan></text>
+<rect x="2420" y="344" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2505" y="370.5">Sharepoint</tspan><tspan x="2505" y="389.5">tuotantokansio</tspan></text>
+<rect x="2460" y="434" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2545" y="470">Projekti 1</tspan></text>
+<rect x="2500" y="524" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2585" y="560">Työmääräin</tspan></text>
+<rect x="2500" y="614" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2585" y="650">Piirustukset</tspan></text>
+<rect x="2696" y="254" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2781" y="290">Järjestelmä</tspan></text>
+<rect x="2736" y="344" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2821" y="380">Henkilöt</tspan></text>
+<rect x="2736" y="434" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="2821" y="470">Tiedonsiirto</tspan></text>
+<rect x="1447" y="130" width="170" height="72" fill="#1a6085"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="1532" y="166">Pääikkuna</tspan></text>
+</g>
+</svg>

@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { convertOfferToProject, updateOffer } from "@/lib/actions/asiakkuudet";
 import { kopioiRakennus, poistaRakennus } from "@/lib/actions/rakennukset";
+import { asetaTarjoushintaLaskelmasta } from "@/lib/actions/tarjouslaskenta";
 import { laskeRakennukset, rakennuksenNimi } from "@/lib/rakennukset";
+import { taydennaSyote } from "@/lib/tarjouslaskenta";
 import { euro, maara, syoteEuro, syotePvm } from "@/lib/muotoilu";
-import { Kentta, Virhe } from "@/components/projektinhallinta";
+import { Ilmoitus, Kentta, Virhe } from "@/components/projektinhallinta";
 import { KustannusErittely, Maaraluettelo, RakennusLomake, Tunnusluku } from "@/components/rakennukset";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,7 @@ export default async function TarjousPage({
   searchParams,
 }: {
   params: { tarjousId: string };
-  searchParams: { virhe?: string; muokkaa?: string };
+  searchParams: { virhe?: string; muokkaa?: string; ilmoitus?: string };
 }) {
   const offer = await prisma.offer.findUnique({
     where: { id: params.tarjousId },
@@ -35,9 +37,14 @@ export default async function TarjousPage({
   const lukittu = !!offer.project;
   const [laskenta, rakenneosat] = await Promise.all([
     laskeRakennukset({ offerId: offer.id }),
-    prisma.structureType.findMany({ where: { active: true }, orderBy: [{ kind: "asc" }, { code: "asc" }] }),
+    prisma.structureType.findMany({ where: { active: true }, include: { littera: true }, orderBy: [{ kind: "asc" }, { code: "asc" }] }),
   ]);
   const { kustannus, hinnoittelu } = laskenta;
+  // Laskennallinen myyntihinta: rakennuksen omakustannus / (1 - laskurin kate), oletuskate 25 %.
+  const myyntihinta = laskenta.rakennukset.reduce(
+    (s, r) => s + r.kustannus.yhteensaSentit / (1 - taydennaSyote(r.rakennus.laskentaSyote).kate / 100),
+    0
+  );
   const kate =
     offer.amountCents && kustannus.yhteensaSentit
       ? { sentit: offer.amountCents - kustannus.yhteensaSentit, pros: ((offer.amountCents - kustannus.yhteensaSentit) / offer.amountCents) * 100 }
@@ -68,10 +75,28 @@ export default async function TarjousPage({
       </div>
 
       <Virhe viesti={searchParams.virhe} />
+      <Ilmoitus viesti={searchParams.ilmoitus} />
 
       <div className="grid grid-cols-4 gap-3">
         <Tunnusluku otsikko="Tila" arvo={TILAT[offer.status]} ala={offer.validUntil ? `Voimassa ${offer.validUntil.toLocaleDateString("fi-FI")} asti` : undefined} />
-        <Tunnusluku otsikko="Tarjoushinta (alv 0 %)" arvo={euro(offer.amountCents)} />
+        <Tunnusluku
+          otsikko="Tarjoushinta (alv 0 %)"
+          arvo={euro(offer.amountCents)}
+          ala={
+            myyntihinta > 0 && (
+              <span className="flex items-center gap-2 flex-wrap">
+                Laskelman mukaan {euro(Math.round(myyntihinta))}
+                {!lukittu && Math.round(myyntihinta) !== offer.amountCents && (
+                  <form action={asetaTarjoushintaLaskelmasta} className="inline">
+                    <input type="hidden" name="offerId" value={offer.id} />
+                    <input type="hidden" name="paluu" value={polku} />
+                    <button className="underline text-accent-text">Aseta tarjoushinnaksi</button>
+                  </form>
+                )}
+              </span>
+            )
+          }
+        />
         <Tunnusluku
           otsikko="Omakustannus (rakenteista)"
           arvo={euro(kustannus.yhteensaSentit)}
@@ -117,8 +142,9 @@ export default async function TarjousPage({
         <div>
           <h2 className="text-xl">Rakennukset</h2>
           <p className="text-ink-2 text-sm mt-1 max-w-3xl">
-            Tarjouksen sisältö: rakennukset ja niiden määräluettelot (rakenteet ja ostonimikkeet rakenneosakirjastosta). Kun
-            tarjous muutetaan projektiksi, samat rakennukset määräluetteloineen siirtyvät projektille.
+            Tarjouksen sisältö: rakennukset ja niiden määräluettelot litteroittain. Laske määräluettelo rakennuksen
+            tarjouslaskurilla tai lisää rakenneosia käsin. Kun tarjous muutetaan projektiksi, samat rakennukset
+            määräluetteloineen siirtyvät projektille.
             {lukittu && " Tämä tarjous on jo muutettu projektiksi, joten rakennuksia muokataan projektissa."}
           </p>
         </div>
@@ -132,12 +158,28 @@ export default async function TarjousPage({
                   {[rakennus.buildingType, rakennus.grossAreaM2 ? `${maara(rakennus.grossAreaM2, 1)} m²` : null].filter(Boolean).join(" · ")}
                 </div>
               </div>
-              <div className="text-right text-sm">
-                <div className="font-mono font-semibold">{euro(k.yhteensaSentit)}</div>
-                <div className="text-xs text-ink-2">{maara(k.tunnit, 0)} h</div>
+              <div className="flex items-start gap-4">
+                {!lukittu && (
+                  <Link href={`/asiakkuuksien-hallinta/tarjouslaskenta?rakennus=${rakennus.id}`} className="btn btn-secondary btn-sm">
+                    {rakennus.laskentaSyote ? "Avaa tarjouslaskenta" : "Laske tarjouslaskurilla"}
+                  </Link>
+                )}
+                <div className="text-right text-sm">
+                  <div className="font-mono font-semibold">{euro(k.yhteensaSentit)}</div>
+                  <div className="text-xs text-ink-2">
+                    omakustannus · kate {taydennaSyote(rakennus.laskentaSyote).kate} %
+                  </div>
+                </div>
               </div>
             </div>
-            <Maaraluettelo rakennus={rakennus} rakenneosat={rakenneosat} paluu={polku} muokkaa={searchParams.muokkaa} lukittu={lukittu} />
+            <Maaraluettelo
+              rakennus={rakennus}
+              rakenneosat={rakenneosat}
+              hinnoittelu={hinnoittelu}
+              paluu={polku}
+              muokkaa={searchParams.muokkaa}
+              lukittu={lukittu}
+            />
             {!lukittu && (
               <div className="flex gap-3 items-center border-t border-line pt-3">
                 <form action={kopioiRakennus} className="flex gap-2 items-center">

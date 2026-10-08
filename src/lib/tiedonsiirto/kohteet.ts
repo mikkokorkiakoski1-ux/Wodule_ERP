@@ -135,6 +135,15 @@ const ELEMENTIN_TILAT: Valinta[] = [
 const MAARAN_LAHTEET: Valinta[] = [
   { arvo: "KASIN", nimi: "Käsin" },
   { arvo: "BIM", nimi: "BIM" },
+  { arvo: "LASKURI", nimi: "Laskuri" },
+];
+
+const KUSTANNUSLAJIT: Valinta[] = [
+  { arvo: "MATERIAALI", nimi: "Materiaali / osto" },
+  { arvo: "MATERIAALI", nimi: "Materiaali" },
+  { arvo: "TEHDASTYO", nimi: "Tehdastyö" },
+  { arvo: "TEHDASTYO", nimi: "TEH-TYÖ" },
+  { arvo: "ALIURAKKA", nimi: "Aliurakka" },
 ];
 
 const REKLAMAATION_TILAT: Valinta[] = [
@@ -322,6 +331,12 @@ async function etsiRakenneosa(tx: Tx, koodiTaiBim: string) {
     (await tx.structureType.findFirst({ where: { bimTypeName: eiKirjainkokoa(koodiTaiBim) } }));
   if (!tyyppi) throw new RiviVirhe(`Rakenneosaa "${koodiTaiBim}" ei löydy koodilla eikä BIM-tyyppinimellä`);
   return tyyppi;
+}
+
+async function etsiLittera(tx: Tx, koodi: string) {
+  const l = await tx.littera.findUnique({ where: { code: koodi } });
+  if (!l) throw new RiviVirhe(`Litteraa "${koodi}" ei löydy. Tuo se ensin Litterat-kohteena.`);
+  return l;
 }
 
 async function etsiRakennus(tx: Tx, projectId: string, tunnus: string) {
@@ -699,6 +714,7 @@ const hankintarivit: Kohde = {
     { avain: "maara", otsikko: "Määrä", tyyppi: "luku", min: 0, aliakset: ["quantity"] },
     { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", aliakset: ["unit"] },
     { avain: "nimike", otsikko: "Nimikekoodi", tyyppi: "teksti", aliakset: ["nimikekoodi", "tuotekoodi", "product code"], kuvaus: "Nimikkeistön koodi, jos rivi on materiaalinimike (esim. luotu rakenteiden materiaalitarpeesta)." },
+    { avain: "rakenneosa", otsikko: "Rakenneosa", tyyppi: "teksti", aliakset: ["rakenneosan koodi"], kuvaus: "Rakenneosan koodi, jos rivi on luotu kiinteähintaisesta määräluettelon rivistä." },
     { avain: "lAineisto", otsikko: "Aineisto", tyyppi: "pvm", vainVienti: true },
     { avain: "lPyynto", otsikko: "Pyyntö", tyyppi: "pvm", vainVienti: true },
     { avain: "lTarjous", otsikko: "Tarjous", tyyppi: "pvm", vainVienti: true },
@@ -710,7 +726,7 @@ const hankintarivit: Kohde = {
   maara: (db) => db.procurementItem.count(),
   async hae(db) {
     const rivit = await db.procurementItem.findMany({
-      include: { assignee: true, product: true, procurementPlan: { include: { project: { include: { customer: true, scheduleTasks: true } } } } },
+      include: { assignee: true, product: true, structureType: true, procurementPlan: { include: { project: { include: { customer: true, scheduleTasks: true } } } } },
       orderBy: [{ procurementPlan: { project: { name: "asc" } } }, { littera: "asc" }, { description: "asc" }],
     });
     const aikataulut = new Map<string, ReturnType<typeof laskeProjektiaikataulu>>();
@@ -744,6 +760,7 @@ const hankintarivit: Kohde = {
         maara: r.quantity,
         yksikko: r.unit,
         nimike: r.product?.code ?? null,
+        rakenneosa: r.structureType?.code ?? null,
         lAineisto: t?.aineisto ?? null,
         lPyynto: t?.pyynto ?? null,
         lTarjous: t?.tarjous ?? null,
@@ -786,6 +803,7 @@ const hankintarivit: Kohde = {
       quantity: a.maara as number | undefined,
       unit: teksti(a, "yksikko"),
       productId: teksti(a, "nimike") ? (await etsiNimike(tx, teksti(a, "nimike")!)).id : undefined,
+      structureTypeId: teksti(a, "rakenneosa") ? (await etsiRakenneosa(tx, teksti(a, "rakenneosa")!)).id : undefined,
     };
     const tulos = await tallenna(
       tapa,
@@ -1668,6 +1686,36 @@ const piirustukset: Kohde = {
 // Vakiorakennekirjasto ja rakennukset
 // ============================================================
 
+const litterat: Kohde = {
+  avain: "litterat",
+  nimi: "Litterat",
+  osio: "Tuotehallinta",
+  kuvaus: "Litterat (Talo 80), joiden mukaan rakenneosat, määräluettelot ja hankinnat lajitellaan.",
+  tunnistus: "Koodi.",
+  sarakkeet: [
+    { avain: "koodi", otsikko: "Koodi", tyyppi: "teksti", pakollinen: true, aliakset: ["code", "littera"], esimerkki: "3500" },
+    { avain: "nimi", otsikko: "Nimi", tyyppi: "teksti", pakollinen: true, aliakset: ["name"], esimerkki: "Elementtituotanto" },
+  ],
+  maara: (db) => db.littera.count(),
+  async hae(db) {
+    const rivit = await db.littera.findMany();
+    return rivit
+      .sort((a, b) => a.code.localeCompare(b.code, "fi", { numeric: true }))
+      .map((l) => ({ koodi: l.code, nimi: l.name }));
+  },
+  async tuoRivi(a, tx, tapa) {
+    const koodi = teksti(a, "koodi")!;
+    const olemassa = await tx.littera.findUnique({ where: { code: koodi } });
+    const tulos = await tallenna(
+      tapa,
+      olemassa,
+      () => tx.littera.create({ data: { code: koodi, name: teksti(a, "nimi")! } }),
+      (o) => tx.littera.update({ where: { id: o.id }, data: { name: teksti(a, "nimi")! } })
+    );
+    return { tulos, tunniste: `${koodi} ${teksti(a, "nimi")}` };
+  },
+};
+
 const rakenneosaKirjasto: Kohde = {
   avain: "rakenneosat",
   nimi: "Rakenneosat",
@@ -1681,8 +1729,12 @@ const rakenneosaKirjasto: Kohde = {
     { avain: "nimi", otsikko: "Nimi", tyyppi: "teksti", aliakset: ["name"], kuvaus: "Pakollinen rakenteelle. Ostonimikkeellä oletus on nimikkeen nimi.", esimerkki: "Ulkoseinä 200 mm, puurunko" },
     { avain: "laji", otsikko: "Laji", tyyppi: "valinta", valinnat: RAKENNEOSAN_LAJIT, aliakset: ["kind", "tyyppi"], kuvaus: "Rakenne (oletus) tai Ostonimike.", esimerkki: "RAKENNE" },
     { avain: "nimike", otsikko: "Nimikekoodi", tyyppi: "teksti", aliakset: ["nimikekoodi", "tuotekoodi", "product code"], kuvaus: "Ostonimikkeen nimike nimikkeistöstä." },
+    { avain: "littera", otsikko: "Littera", tyyppi: "teksti", aliakset: ["litterakoodi", "talo 80"], kuvaus: "Litteran koodi (ks. Litterat).", esimerkki: "3500" },
     { avain: "kategoria", otsikko: "Kategoria", tyyppi: "valinta", valinnat: RAKENNEKATEGORIAT, aliakset: ["category"], esimerkki: "ULKOSEINA" },
     { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", aliakset: ["unit"], kuvaus: "Ostonimikkeellä aina nimikkeen yksikkö.", esimerkki: "m2" },
+    { avain: "hinta", otsikko: "Kiinteä yksikköhinta (€)", tyyppi: "luku", min: 0, aliakset: ["yksikkohinta", "hinta", "unit price"], kuvaus: "Tyhjä = hinta materiaaliluettelosta. Ei ostonimikkeille." },
+    { avain: "kustannuslaji", otsikko: "Kustannuslaji", tyyppi: "valinta", valinnat: KUSTANNUSLAJIT, aliakset: ["cost type"], esimerkki: "MATERIAALI" },
+    { avain: "laskuriAvain", otsikko: "Laskurin rivi", tyyppi: "teksti", vainVienti: true },
     { avain: "kuvaus", otsikko: "Kuvaus", tyyppi: "teksti", aliakset: ["description"] },
     { avain: "tyotunnit", otsikko: "Työtunnit / yksikkö", tyyppi: "luku", min: 0, aliakset: ["tyotunnit", "tuntinormi", "labor hours", "asennustunnit"], kuvaus: "Ostonimikkeellä asennus- tai käsittelyaika.", esimerkki: 0.8 },
     { avain: "bimTyyppi", otsikko: "BIM-tyyppinimi", tyyppi: "teksti", aliakset: ["bim type", "ifc type", "type name", "tyyppinimi"] },
@@ -1692,15 +1744,19 @@ const rakenneosaKirjasto: Kohde = {
   ],
   maara: (db) => db.structureType.count(),
   async hae(db) {
-    const rivit = await db.structureType.findMany({ include: { materials: { include: { product: true } } }, orderBy: [{ kind: "asc" }, { code: "asc" }] });
+    const rivit = await db.structureType.findMany({ include: { littera: true, materials: { include: { product: true } } }, orderBy: [{ kind: "asc" }, { code: "asc" }] });
     return rivit.map((t) => ({
       id: t.id,
       koodi: t.code,
       nimi: t.name,
       laji: t.kind,
       nimike: t.kind === "OSTONIMIKE" ? t.materials[0]?.product.code ?? null : null,
+      littera: t.littera?.code ?? null,
       kategoria: t.category,
       yksikko: t.unit,
+      hinta: t.unitPriceCents === null ? null : t.unitPriceCents / 100,
+      kustannuslaji: t.costType,
+      laskuriAvain: t.laskuriAvain,
       kuvaus: t.description,
       tyotunnit: t.laborHoursPerUnit,
       bimTyyppi: t.bimTypeName,
@@ -1727,10 +1783,16 @@ const rakenneosaKirjasto: Kohde = {
     if (laji === "RAKENNE" && nimike) throw new RiviVirhe("Nimikekoodi annetaan vain ostonimikkeelle");
     const nimi = teksti(a, "nimi") ?? (olemassa ? undefined : nimike?.name);
     if (!nimi && !olemassa) throw new RiviVirhe("Nimi on pakollinen");
+    const litteraKoodi = teksti(a, "littera");
+    const hinta = a.hinta as number | undefined;
+    if (laji === "OSTONIMIKE" && hinta !== undefined) throw new RiviVirhe("Ostonimikkeen hinta tulee nimikkeen hinnastosta; jätä Kiinteä yksikköhinta tyhjäksi");
     const data = {
       code: koodi,
       name: nimi,
       kind: laji,
+      litteraId: litteraKoodi ? (await etsiLittera(tx, litteraKoodi)).id : undefined,
+      unitPriceCents: hinta === undefined ? undefined : Math.round(hinta * 100 * 1e6) / 1e6,
+      costType: a.kustannuslaji as Prisma.StructureTypeCreateInput["costType"],
       category: a.kategoria as Prisma.StructureTypeCreateInput["category"],
       unit: nimike ? nimike.unit : teksti(a, "yksikko"),
       description: teksti(a, "kuvaus"),
@@ -2097,6 +2159,7 @@ export const KOHTEET: Kohde[] = [
   nimikkeet,
   hinnastot,
   hinnastorivit,
+  litterat,
   rakenneosaKirjasto,
   rakenneosamateriaalit,
   tarjoukset,

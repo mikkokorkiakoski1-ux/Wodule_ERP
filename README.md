@@ -2,7 +2,7 @@
 
 Sisäinen toiminnanohjausjärjestelmä (ERP) talotehtaalle, rakennettu
 liitteenä olleen sivukartta-/rakennekaavion pohjalta (ks.
-`docs/rakennekaavio.jpg` ja `docs/ARKKITEHTUURI.md`). Kuusi pääosiota:
+`docs/rakennekaavio.png` ja `docs/ARKKITEHTUURI.md`). Kuusi pääosiota:
 **Asiakkuuksien hallinta**, **Projektit**, **Tuotehallinta**,
 **Reklamaatiot**, **Laadunvarmistus** ja **Tuotannon ohjaus**.
 
@@ -104,23 +104,30 @@ BIM-tyyppinimestä, ja GlobalId päivittää uusintatuonnissa saman rivin.
 - Materiaalitarve nimikkeittäin ja hankintarivien luonti siitä. Hinnastoille tuntihinta.
 - Reklamaatiot, tarkastuslistat (pohjat), dokumentit, työmääräimet ja piirustukset kohdistettavissa rakennukseen tai elementtiin.
 - BIM-valmius: määräluettelon tuonti, GUID:t rakennuksille, määräluettelon riveille ja elementeille, BIM-mallin linkki.
-- `docs/rakennekaavio.jpg` pitää päivittää käsin uutta rakennetta vastaavaksi.
+- Rakennekaavio päivitetty 8.10.2026 (`docs/rakennekaavio.png`, generoidaan tiedostosta `docs/rakennekaavio.mjs`).
 
 Tehty ja pushattu (commit `a3a6905`). Testattu yksikkötesteillä (74) ja
 päästä päähän erillistä kokeilukantaa vasten (lomakkeet, muunnos projektiksi,
 hankinnat, BIM-tuonti, ostonimikkeet). Ei vielä kokeiltu selaimessa oikealla
 datalla.
 
+**Tilanne 8.10.2026.** Tarjouslaskenta ja litterat:
+
+- Woodcomp Modulesin kustannusarviolaskuri tarjouslaskentatyökaluksi (`/asiakkuuksien-hallinta/tarjouslaskenta`). Laskenta on portattu sellaisenaan, ja testit vertaavat sitä alkuperäiseen laskuriin.
+- Laskurin 104 laskentariviä ja 29 litteraa ovat rakenneosakirjastossa. Määrät lasketaan laskurissa, ja hinnat ovat muokattavissa kirjastossa.
+- Tarjouksen ja projektin rakennuksen laskenta tallentuu määräluetteloon, joka lajitellaan litteroittain. Tarjoushinnan voi asettaa laskelmasta.
+- Kiinteähintaiset rivit (ostot ja aliurakat) hankintasuunnitelmaan litteroineen ja kustannuksineen.
+- Rakennekaavio päivitetty.
+
 Seuraavaksi (tauon jälkeen):
 
-1. Täytä oikeaan kantaan rakenneosakirjasto (rakenteet, materiaalit,
-   ostonimikkeet) ja hinnaston tuntihinta, käsin tai tiedonsiirrolla. Seedin
-   ajaminen tyhjentäisi kannan.
-2. Kokeile kulku selaimessa: tarjous → rakennukset ja määräluettelo → kate →
+1. Tuo tarjouslaskurin laskentarivit kirjastoon (Rakenneosat-sivun painike) ja
+   täydennä omat rakenteet, materiaalit, ostonimikkeet ja hinnaston tuntihinta.
+   Seedin ajaminen tyhjentäisi kannan.
+2. Kokeile kulku selaimessa: tarjous → rakennus → tarjouslaskenta → kate →
    Muuta projektiksi → elementit → materiaalitarve → hankintasuunnitelma.
    Korjaa havainnot.
-3. Päivitä `docs/rakennekaavio.jpg`.
-4. BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista) tai
+3. BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista) tai
    mallipalvelun rajapinta (Trimble Connect, Dalux), jotta määräluettelon
    vientiä ei tarvita.
 

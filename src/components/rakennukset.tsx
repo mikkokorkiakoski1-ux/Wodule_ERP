@@ -2,10 +2,19 @@
 // määräluettelo (rakenneosa × määrä), kustannusyhteenveto ja
 // materiaalitarve. Käytössä tarjouksen sivulla ja projektin
 // Rakennukset- ja Materiaalitarve-sivuilla.
+import { Fragment } from "react";
 import Link from "next/link";
 import { poistaMaararivi, tallennaRakennus, tallennaMaararivi } from "@/lib/actions/rakennukset";
-import { RAKENNUKSEN_TILAT, MAARAN_LAHTEET, type Hinnoittelu, type RakennusOsineen } from "@/lib/rakennukset";
-import type { Kustannus, Materiaalitarve } from "@/lib/rakenteet";
+import {
+  KUSTANNUSLAJIT,
+  RAKENNUKSEN_TILAT,
+  MAARAN_LAHTEET,
+  litterajarjestys,
+  litteranNimi,
+  type Hinnoittelu,
+  type RakennusOsineen,
+} from "@/lib/rakennukset";
+import { laskeKustannus, type KiinteaRivi, type Kustannus, type Materiaalitarve } from "@/lib/rakenteet";
 import { euro, maara, syoteLuku, syotePvm } from "@/lib/muotoilu";
 import { Kentta } from "@/components/projektinhallinta";
 
@@ -15,6 +24,7 @@ export interface RakenneosaValinta {
   name: string;
   unit: string;
   kind: string;
+  littera?: { code: string; name: string } | null;
 }
 
 export function Tunnusluku({ otsikko, arvo, ala, korostus }: { otsikko: string; arvo: React.ReactNode; ala?: React.ReactNode; korostus?: boolean }) {
@@ -100,15 +110,29 @@ export function RakennusLomake({
  * Rakennuksen määräluettelo (rakenneosa × määrä) taulukkona ja lisäys- tai muokkauslomake.
  * Muokattava osa valitaan ?muokkaa=<osan id> -parametrilla.
  */
+/** Valintalistan ryhmät: litteroittain; litterattomat lajin mukaan (Rakenteet, Ostonimikkeet). */
+function valintaryhmat(osat: RakenneosaValinta[]): [string, RakenneosaValinta[]][] {
+  const ryhmat = new Map<string, { littera?: { code: string } | null; osat: RakenneosaValinta[] }>();
+  for (const t of osat) {
+    const otsikko = t.littera ? litteranNimi(t.littera) : t.kind === "OSTONIMIKE" ? "Ostonimikkeet" : "Rakenteet";
+    const r = ryhmat.get(otsikko) ?? { littera: t.littera, osat: [] };
+    r.osat.push(t);
+    ryhmat.set(otsikko, r);
+  }
+  return [...ryhmat.entries()].sort(([, a], [, b]) => litterajarjestys(a.littera, b.littera)).map(([o, r]) => [o, r.osat]);
+}
+
 export function Maaraluettelo({
   rakennus,
   rakenneosat,
+  hinnoittelu,
   paluu,
   muokkaa,
   lukittu = false,
 }: {
   rakennus: RakennusOsineen;
   rakenneosat: RakenneosaValinta[];
+  hinnoittelu: Hinnoittelu;
   paluu: string;
   muokkaa?: string;
   lukittu?: boolean;
@@ -116,6 +140,18 @@ export function Maaraluettelo({
   const muokattava = rakennus.parts.find((o) => o.id === muokkaa);
   const ankkuri = `osat-${rakennus.id}`;
   const erotin = paluu.includes("?") ? "&" : "?";
+  const rivinHinta = (o: (typeof rakennus.parts)[number]) =>
+    laskeKustannus([o], hinnoittelu.hinnat, hinnoittelu.tuntihintaSentit).yhteensaSentit;
+  // Litteroittain (Talo 80), litterattomat viimeisenä; litteran sisällä rivien järjestys.
+  const ryhmat = new Map<string, { littera: (typeof rakennus.parts)[number]["structureType"]["littera"]; rivit: typeof rakennus.parts }>();
+  for (const o of rakennus.parts) {
+    const avain = o.structureType.littera?.code ?? "";
+    const r = ryhmat.get(avain) ?? { littera: o.structureType.littera, rivit: [] };
+    r.rivit.push(o);
+    ryhmat.set(avain, r);
+  }
+  const litteroittain = [...ryhmat.values()].sort((a, b) => litterajarjestys(a.littera, b.littera));
+  const sarakkeita = lukittu ? 6 : 7;
   return (
     <div id={ankkuri} className="flex flex-col gap-3">
       <table className="w-full text-sm">
@@ -125,48 +161,67 @@ export function Maaraluettelo({
             <th className="py-2 pr-3 text-right">Määrä</th>
             <th className="py-2 pr-3">Sijainti</th>
             <th className="py-2 pr-3">Lähde</th>
-            <th className="py-2 pr-3 text-right">Työtunnit</th>
+            <th className="py-2 pr-3 text-right">Yks. hinta</th>
+            <th className="py-2 pr-3 text-right">Yhteensä</th>
             {!lukittu && <th className="py-2"></th>}
           </tr>
         </thead>
         <tbody>
-          {rakennus.parts.map((o) => (
-            <tr key={o.id} className={`border-b border-line last:border-0 ${o.id === muokkaa ? "bg-surface-raised" : ""}`}>
-              <td className="py-2 pr-3">
-                <Link href={`/tuotehallinta/rakenneosat/${o.structureType.id}`} className="font-mono hover:underline">
-                  {o.structureType.code}
-                </Link>{" "}
-                <span className="text-ink-2">{o.structureType.name}</span>
-                {o.notes && <div className="text-xs text-ink-muted">{o.notes}</div>}
-              </td>
-              <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
-                {maara(o.quantity)} {o.structureType.unit}
-              </td>
-              <td className="py-2 pr-3 text-ink-2">{o.location ?? "–"}</td>
-              <td className="py-2 pr-3">
-                <span className={`badge ${o.source === "BIM" ? "info" : "muted"}`} title={o.bimGuid ?? undefined}>
-                  {MAARAN_LAHTEET[o.source]}
-                </span>
-              </td>
-              <td className="py-2 pr-3 text-right font-mono">{maara(o.quantity * o.structureType.laborHoursPerUnit, 1)}</td>
-              {!lukittu && (
-                <td className="py-2 text-right whitespace-nowrap">
-                  <Link href={`${paluu}${erotin}muokkaa=${o.id}#${ankkuri}`} className="text-xs underline mr-3">
-                    Muokkaa
-                  </Link>
-                  <form action={poistaMaararivi} className="inline">
-                    <input type="hidden" name="id" value={o.id} />
-                    <input type="hidden" name="paluu" value={paluu} />
-                    <button className="text-xs text-ink-muted hover:text-critical">Poista</button>
-                  </form>
+          {litteroittain.map(({ littera, rivit }) => (
+            <Fragment key={littera?.code ?? "-"}>
+              <tr className="bg-surface-raised border-b border-line">
+                <td colSpan={5} className="py-1.5 pr-3 pl-1 font-mono text-xs font-semibold uppercase">
+                  {litteranNimi(littera)}
                 </td>
-              )}
-            </tr>
+                <td className="py-1.5 pr-3 text-right font-mono text-xs font-semibold">{euro(rivit.reduce((s, o) => s + rivinHinta(o), 0))}</td>
+                {!lukittu && <td />}
+              </tr>
+              {rivit.map((o) => {
+                const yhteensa = rivinHinta(o);
+                return (
+                  <tr key={o.id} className={`border-b border-line last:border-0 ${o.id === muokkaa ? "bg-surface-raised" : ""}`}>
+                    <td className="py-2 pr-3">
+                      <Link href={`/tuotehallinta/rakenneosat/${o.structureType.id}`} className="font-mono hover:underline">
+                        {o.structureType.code}
+                      </Link>{" "}
+                      <span className="text-ink-2">{o.structureType.name}</span>
+                      {o.structureType.costType === "TEHDASTYO" && <span className="badge info ml-2">tehdastyö</span>}
+                      {o.structureType.costType === "ALIURAKKA" && <span className="badge muted ml-2">aliurakka</span>}
+                      {o.notes && <div className="text-xs text-ink-muted">{o.notes}</div>}
+                    </td>
+                    <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
+                      {maara(o.quantity)} {o.structureType.unit}
+                    </td>
+                    <td className="py-2 pr-3 text-ink-2">{o.location ?? "–"}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`badge ${o.source === "BIM" ? "info" : o.source === "LASKURI" ? "ok" : "muted"}`} title={o.bimGuid ?? undefined}>
+                        {MAARAN_LAHTEET[o.source]}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-right font-mono">{o.quantity ? euro(Math.round(yhteensa / o.quantity)) : "–"}</td>
+                    <td className="py-2 pr-3 text-right font-mono">{euro(yhteensa)}</td>
+                    {!lukittu && (
+                      <td className="py-2 text-right whitespace-nowrap">
+                        <Link href={`${paluu}${erotin}muokkaa=${o.id}#${ankkuri}`} className="text-xs underline mr-3">
+                          Muokkaa
+                        </Link>
+                        <form action={poistaMaararivi} className="inline">
+                          <input type="hidden" name="id" value={o.id} />
+                          <input type="hidden" name="paluu" value={paluu} />
+                          <button className="text-xs text-ink-muted hover:text-critical">Poista</button>
+                        </form>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </Fragment>
           ))}
           {rakennus.parts.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-4 text-center text-ink-muted">
-                Määräluettelo on tyhjä. Lisää rakenneosat ja määrät tai tuo ne BIM-mallin määräluettelosta.
+              <td colSpan={sarakkeita} className="py-4 text-center text-ink-muted">
+                Määräluettelo on tyhjä. Laske se tarjouslaskurilla, lisää rakenneosat ja määrät käsin tai tuo ne BIM-mallin
+                määräluettelosta.
               </td>
             </tr>
           )}
@@ -192,18 +247,13 @@ export function Maaraluettelo({
                 <option value="" disabled>
                   Valitse rakenneosa
                 </option>
-                {[
-                  ["RAKENNE", "Rakenteet"],
-                  ["OSTONIMIKE", "Ostonimikkeet"],
-                ].map(([laji, otsikko]) => (
-                  <optgroup key={laji} label={otsikko}>
-                    {rakenneosat
-                      .filter((t) => t.kind === laji)
-                      .map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.code} {t.name} ({t.unit})
-                        </option>
-                      ))}
+                {valintaryhmat(rakenneosat).map(([otsikko, osat]) => (
+                  <optgroup key={otsikko} label={otsikko}>
+                    {osat.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} {t.name} ({t.unit})
+                      </option>
+                    ))}
                   </optgroup>
                 ))}
               </select>
@@ -236,13 +286,25 @@ export function KustannusErittely({ kustannus, hinnoittelu }: { kustannus: Kusta
   return (
     <div className="flex flex-col gap-2 text-sm">
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
-        <dt className="text-ink-2">Materiaalit</dt>
+        <dt className="text-ink-2">Materiaalit ja ostot</dt>
         <dd className="text-right font-mono">{euro(kustannus.materiaalitSentit)}</dd>
         <dt className="text-ink-2">
-          Työ ({maara(kustannus.tunnit, 1)} h
-          {hinnoittelu.tuntihintaSentit !== null && <> × {euro(hinnoittelu.tuntihintaSentit)}</>})
+          Tehdastyö
+          {kustannus.tunnit > 0 && (
+            <>
+              {" "}
+              (sis. {maara(kustannus.tunnit, 1)} h
+              {hinnoittelu.tuntihintaSentit !== null && <> × {euro(hinnoittelu.tuntihintaSentit)}</>})
+            </>
+          )}
         </dt>
         <dd className="text-right font-mono">{euro(kustannus.tyoSentit)}</dd>
+        {kustannus.aliurakkaSentit > 0 && (
+          <>
+            <dt className="text-ink-2">Aliurakat</dt>
+            <dd className="text-right font-mono">{euro(kustannus.aliurakkaSentit)}</dd>
+          </>
+        )}
         <dt className="font-semibold border-t border-line pt-1">Omakustannus (alv 0 %)</dt>
         <dd className="text-right font-mono font-semibold border-t border-line pt-1">{euro(kustannus.yhteensaSentit)}</dd>
       </dl>
@@ -306,6 +368,60 @@ export function MateriaalitarveTaulukko({ tarve, hinnoittelu }: { tarve: Materia
           <tr>
             <td colSpan={5} className="p-6 text-center text-ink-muted">
               Ei materiaalitarvetta. Lisää rakennusten määräluetteloihin rakenneosia, joilla on materiaaliluettelo tai nimike.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+/** Kiinteähintaiset rivit (esim. tarjouslaskurin rivit) litteroittain välisummineen. */
+export function KiinteatRivitTaulukko({ rivit }: { rivit: KiinteaRivi[] }) {
+  const ryhmat = new Map<string, KiinteaRivi[]>();
+  for (const r of rivit) ryhmat.set(litteranNimi(r.rakenneosa.littera), [...(ryhmat.get(litteranNimi(r.rakenneosa.littera)) ?? []), r]);
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-xs uppercase text-ink-muted font-mono border-b border-line">
+          <th className="p-3">Rakenneosa</th>
+          <th className="p-3">Kustannuslaji</th>
+          <th className="p-3 text-right">Määrä</th>
+          <th className="p-3 text-right">Yks. hinta</th>
+          <th className="p-3 text-right">Yhteensä</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[...ryhmat.entries()].map(([otsikko, rr]) => (
+          <Fragment key={otsikko}>
+            <tr className="bg-surface-raised border-b border-line">
+              <td colSpan={4} className="px-3 py-1.5 font-mono text-xs font-semibold uppercase">
+                {otsikko}
+              </td>
+              <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold">{euro(Math.round(rr.reduce((s, r) => s + r.summaSentit, 0)))}</td>
+            </tr>
+            {rr.map((r) => (
+              <tr key={r.rakenneosa.id} className="border-b border-line">
+                <td className="p-3">
+                  <Link href={`/tuotehallinta/rakenneosat/${r.rakenneosa.id}`} className="font-mono hover:underline">
+                    {r.rakenneosa.code}
+                  </Link>{" "}
+                  <span className="text-ink-2">{r.rakenneosa.name}</span>
+                </td>
+                <td className="p-3 text-ink-2">{KUSTANNUSLAJIT[r.laji]}</td>
+                <td className="p-3 text-right font-mono whitespace-nowrap">
+                  {maara(r.maara)} {r.rakenneosa.unit}
+                </td>
+                <td className="p-3 text-right font-mono">{euro(Math.round(r.rakenneosa.unitPriceCents ?? 0))}</td>
+                <td className="p-3 text-right font-mono">{euro(Math.round(r.summaSentit))}</td>
+              </tr>
+            ))}
+          </Fragment>
+        ))}
+        {rivit.length === 0 && (
+          <tr>
+            <td colSpan={5} className="p-6 text-center text-ink-muted">
+              Ei kiinteähintaisia rivejä.
             </td>
           </tr>
         )}

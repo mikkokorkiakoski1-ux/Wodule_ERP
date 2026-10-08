@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+import { OLETUSSYOTE, laske, type Syote } from "../src/lib/tarjouslaskenta";
+import { haeLaskurinHinnat, varmistaLaskurinKirjasto } from "../src/lib/tarjouslaskuri-kirjasto";
 
 const prisma = new PrismaClient();
 
@@ -38,6 +40,7 @@ async function main() {
   await prisma.building.deleteMany();
   await prisma.structureMaterial.deleteMany();
   await prisma.structureType.deleteMany();
+  await prisma.littera.deleteMany();
   await prisma.project.deleteMany();
   await prisma.offer.deleteMany();
   await prisma.priceListItem.deleteMany();
@@ -275,6 +278,43 @@ async function main() {
           { code: "MOD4", name: "Majoitusrakennus", buildingType: "Majoitusmoduuli", grossAreaM2: 36, seq: 1, parts: { create: osat([["AP-1", 36, null], ["US-1", 85, null], ["VS-1", 30, null], ["YP-1", 36, null], ["IK-1", 4, null], ["UO-1", 1, null]]) } },
           { code: "MOD5", name: "Majoitusrakennus", buildingType: "Majoitusmoduuli", grossAreaM2: 36, seq: 2, parts: { create: osat([["AP-1", 36, null], ["US-1", 85, null], ["VS-1", 30, null], ["YP-1", 36, null], ["IK-1", 4, null], ["UO-1", 1, null]]) } },
         ],
+      },
+    },
+  });
+
+  console.log("Luodaan tarjouslaskurin litterat ja laskentarivit kirjastoon...");
+  await varmistaLaskurinKirjasto(prisma);
+  // Esimerkkikirjaston omat rakenneosat samoihin litteroihin.
+  const OMAT_LITTERAT: Record<string, string> = { "US-1": "3500", "VS-1": "3500", "AP-1": "3300", "YP-1": "3700", "IK-1": "4100", "UO-1": "4300", "ILP-35": "7110" };
+  for (const [koodi, littera] of Object.entries(OMAT_LITTERAT)) {
+    await prisma.structureType.update({ where: { code: koodi }, data: { littera: { connect: { code: littera } } } });
+  }
+
+  console.log("Luodaan tarjouslaskurilla laskettu esimerkkitarjous...");
+  const syote: Syote = { ...OLETUSSYOTE, leveys: 4200, pituus: 9000, sauna: true, saunaAla: 3, keittio: "S Plus", ilp: 1, terassi: 6 };
+  const laskelma = laske(syote, await haeLaskurinHinnat(prisma));
+  const laskurinOsat = new Map(
+    (await prisma.structureType.findMany({ where: { laskuriAvain: { not: null } } })).map((t) => [t.laskuriAvain!, t.id])
+  );
+  await prisma.offer.create({
+    data: {
+      customerId: customers.get("Tervas")!,
+      title: "Saunallinen loma-asunto (tarjouslaskuri)",
+      status: "LUONNOS",
+      amountCents: Math.round(laskelma.myyntihinta * 100),
+      buildings: {
+        create: {
+          code: "A",
+          name: "Loma-asunto",
+          buildingType: "Tilaelementti",
+          grossAreaM2: laskelma.geometria.bruttoala,
+          laskentaSyote: syote as object,
+          parts: {
+            create: laskelma.rivit
+              .filter((r) => r.maara !== 0)
+              .map((r, i) => ({ structureTypeId: laskurinOsat.get(r.avain)!, quantity: r.maara, source: "LASKURI" as const, seq: 1000 + i })),
+          },
+        },
       },
     },
   });

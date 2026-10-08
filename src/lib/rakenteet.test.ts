@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  laskeKiinteatRivit,
   laskeKustannus,
   laskeMateriaalitarve,
   laskeTuntimenekki,
@@ -8,6 +9,7 @@ import {
   type Maararivi,
   type Rakenneosa,
 } from "./rakenteet";
+import { OLETUSSYOTE, laske } from "./tarjouslaskenta";
 
 const runko = { id: "p1", code: "RUNKO-48x198", name: "Runkopuu 48x198", unit: "jm" };
 const villa = { id: "p2", code: "VILLA-200", name: "Mineraalivilla 200", unit: "m2" };
@@ -153,5 +155,63 @@ describe("valitseHinnasto", () => {
 
   it("palauttaa null, jos yksikään ei ole alkanut", () => {
     expect(valitseHinnasto([h("2027", "2027-01-01", null)], paiva)).toBeNull();
+  });
+});
+
+describe("kiinteähintaiset rakenneosat", () => {
+  const valmisseina: Rakenneosa = {
+    id: "k1",
+    code: "3500-01",
+    name: "Ulkoseinä, tupa",
+    unit: "m2",
+    laborHoursPerUnit: 0,
+    materials: [{ productId: "p1", quantityPerUnit: 99, wastePct: 0, product: runko }],
+    unitPriceCents: 4144,
+    costType: "MATERIAALI",
+    littera: { code: "3500", name: "Elementtituotanto" },
+  };
+  const tehdastyo: Rakenneosa = { ...valmisseina, id: "k2", code: "3801-01", materials: [], unitPriceCents: 10000, costType: "TEHDASTYO", littera: { code: "3801", name: "Tilaelementit" } };
+  const aliurakka: Rakenneosa = { ...valmisseina, id: "k3", code: "7300-01", materials: [], unitPriceCents: 100, costType: "ALIURAKKA", littera: { code: "7300", name: "Sähkötyöt" } };
+
+  it("hinnoittelee määrä × kiinteä hinta ja ohittaa materiaaliluettelon", () => {
+    const rivit: Maararivi[] = [
+      { quantity: 10, structureType: valmisseina },
+      { quantity: 5, structureType: valmisseina },
+      { quantity: 2, structureType: tehdastyo },
+      { quantity: 3000, structureType: aliurakka },
+    ];
+    expect(laskeMateriaalitarve(rivit)).toEqual([]);
+    const k = laskeKustannus(rivit, new Map(), null);
+    expect(k.materiaalitSentit).toBe(15 * 4144);
+    expect(k.tyoSentit).toBe(20000);
+    expect(k.aliurakkaSentit).toBe(300000);
+    expect(k.yhteensaSentit).toBe(15 * 4144 + 20000 + 300000);
+    expect(k.tuntihintaPuuttuu).toBe(false);
+  });
+
+  it("yhdistää saman rakenneosan rivit ja lajittelee litteran mukaan", () => {
+    const k = laskeKiinteatRivit([
+      { quantity: 1, structureType: aliurakka },
+      { quantity: 10, structureType: valmisseina },
+      { quantity: 5, structureType: valmisseina },
+    ]);
+    expect(k.map((r) => [r.rakenneosa.code, r.maara])).toEqual([
+      ["3500-01", 15],
+      ["7300-01", 1],
+    ]);
+  });
+
+  it("tarjouslaskurin rivit määräluettelona tuottavat laskurin omakustannuksen", () => {
+    const laskelma = laske(OLETUSSYOTE);
+    const rivit: Maararivi[] = laskelma.rivit
+      .filter((r) => r.maara !== 0)
+      .map((r) => ({
+        quantity: r.maara,
+        structureType: { id: r.avain, code: r.avain, name: r.nimi, unit: r.yksikko, laborHoursPerUnit: 0, materials: [], unitPriceCents: r.hinta * 100, costType: r.laji },
+      }));
+    const k = laskeKustannus(rivit, new Map(), null);
+    expect(k.yhteensaSentit).toBe(Math.round(laskelma.omakustannus * 100));
+    expect(Math.abs(k.tyoSentit - laskelma.tehdastyo * 100)).toBeLessThanOrEqual(1);
+    expect(k.aliurakkaSentit).toBe(Math.round(laskelma.aliurakka * 100));
   });
 });

@@ -7,7 +7,17 @@ import {
   tallennaRakenne,
   tallennaRakenneosanMateriaali,
 } from "@/lib/actions/rakenteet";
-import { RAKENNEKATEGORIAT, RAKENNEOSAN_LAJIT, RAKENNEOSA_INCLUDE, haeHinnoittelu, rakennuksenNimi } from "@/lib/rakennukset";
+import {
+  KUSTANNUSLAJIT,
+  RAKENNEKATEGORIAT,
+  RAKENNEOSAN_LAJIT,
+  RAKENNEOSA_INCLUDE,
+  haeHinnoittelu,
+  litterajarjestys,
+  litteranNimi,
+  rakennuksenNimi,
+} from "@/lib/rakennukset";
+import { LASKENTARIVIT } from "@/lib/tarjouslaskenta";
 import { yksikkokustannus } from "@/lib/rakenteet";
 import { euro, maara, syoteLuku } from "@/lib/muotoilu";
 import { Kentta, Virhe } from "@/components/projektinhallinta";
@@ -24,7 +34,7 @@ export default async function RakenneosaPage({
   params: { rakenneosaId: string };
   searchParams: { virhe?: string; muokkaa?: string };
 }) {
-  const [osa, nimikkeet, hinnoittelu] = await Promise.all([
+  const [osa, nimikkeet, hinnoittelu, litterat] = await Promise.all([
     prisma.structureType.findUnique({
       where: { id: params.rakenneosaId },
       include: {
@@ -38,7 +48,9 @@ export default async function RakenneosaPage({
     }),
     prisma.product.findMany({ orderBy: { code: "asc" } }),
     haeHinnoittelu(),
+    prisma.littera.findMany({ orderBy: { code: "asc" } }),
   ]);
+  litterat.sort((a, b) => litterajarjestys(a, b));
   if (!osa) notFound();
 
   const polku = `${KIRJASTO}/${osa.id}`;
@@ -46,9 +58,21 @@ export default async function RakenneosaPage({
   const kustannus = yksikkokustannus(osa, hinnoittelu.hinnat, hinnoittelu.tuntihintaSentit);
   const muokattava = osa.materials.find((m) => m.id === searchParams.muokkaa);
   const nimike = ostonimike ? osa.materials[0]?.product : undefined;
+  const kiintea = osa.unitPriceCents !== null;
+  const laskurinRivi = osa.laskuriAvain ? LASKENTARIVIT.find((l) => l.avain === osa.laskuriAvain) : undefined;
 
   const yhteisetKentat = (
     <>
+      <Kentta otsikko="Littera">
+        <select name="litteraId" defaultValue={osa.litteraId ?? ""} className="field">
+          <option value="">Ei litteraa</option>
+          {litterat.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.code} {l.name}
+            </option>
+          ))}
+        </select>
+      </Kentta>
       <Kentta otsikko="Kategoria">
         <select name="category" defaultValue={osa.category} className="field">
           {Object.entries(RAKENNEKATEGORIAT).map(([arvo, nimi]) => (
@@ -90,6 +114,8 @@ export default async function RakenneosaPage({
         </h1>
         <p className="text-ink-2 text-sm mt-1">
           <span className={`badge ${ostonimike ? "info" : "muted"} mr-2`}>{RAKENNEOSAN_LAJIT[osa.kind]}</span>
+          {laskurinRivi && <span className="badge ok mr-2">tarjouslaskurin rivi</span>}
+          {litteranNimi(osa.littera)} ·{" "}
           {RAKENNEKATEGORIAT[osa.category]} · yksikkö {osa.unit} · {maara(osa.laborHoursPerUnit)}{" "}
           {ostonimike ? "asennustuntia" : "työtuntia"} / {osa.unit}
         </p>
@@ -121,6 +147,25 @@ export default async function RakenneosaPage({
               </>
             ) : (
               <p className="text-sm text-critical">Ostonimikkeeltä puuttuu nimike. Valitse se perustiedoista.</p>
+            )}
+          </div>
+        ) : kiintea ? (
+          <div className="card p-5 flex flex-col gap-2 text-sm">
+            <h2 className="font-semibold">Kiinteä yksikköhinta</h2>
+            <p>
+              <span className="font-heading text-2xl font-bold">{euro(Math.round(osa.unitPriceCents!))}</span> / {osa.unit} ·{" "}
+              {KUSTANNUSLAJIT[osa.costType]}
+            </p>
+            <p className="text-ink-2">
+              Rivin hinta on määrä × kiinteä yksikköhinta. Materiaaliluetteloa ei käytetä, eikä rakenneosa näy materiaalitarpeessa
+              vaan kiinteähintaisissa riveissä, joista luodaan hankintarivit litteroittain.
+            </p>
+            {laskurinRivi && (
+              <p className="text-ink-2">
+                Tarjouslaskurin rivi <span className="font-mono">{laskurinRivi.avain}</span>: laskuri laskee määrän rakennuksen
+                syötteistä, ja käyttää tätä hintaa (laskurin oletus {laskurinRivi.hinta.toLocaleString("fi-FI")} €). Muuta hinta
+                perustiedoista.
+              </p>
             )}
           </div>
         ) : (
@@ -264,9 +309,27 @@ export default async function RakenneosaPage({
             </Kentta>
             <Kentta otsikko="Yksikkö">
               <select name="unit" defaultValue={osa.unit} className="field">
-                {[...new Set(["m2", "jm", "kpl", osa.unit])].map((u) => (
+                {[...new Set(["m2", "jm", "kpl", "erä", "h", "€", osa.unit])].map((u) => (
                   <option key={u} value={u}>
                     {u}
+                  </option>
+                ))}
+              </select>
+            </Kentta>
+            <Kentta otsikko="Kiinteä yksikköhinta (€)">
+              <input
+                name="unitPriceEuros"
+                defaultValue={osa.unitPriceCents === null ? "" : String(osa.unitPriceCents / 100).replace(".", ",")}
+                inputMode="decimal"
+                placeholder="tyhjä = materiaaliluettelosta"
+                className="field"
+              />
+            </Kentta>
+            <Kentta otsikko="Kustannuslaji">
+              <select name="costType" defaultValue={osa.costType} className="field">
+                {Object.entries(KUSTANNUSLAJIT).map(([arvo, nimi]) => (
+                  <option key={arvo} value={arvo}>
+                    {nimi}
                   </option>
                 ))}
               </select>

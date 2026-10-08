@@ -249,16 +249,21 @@ export async function luoTarkastuslistaPohjasta(formData: FormData) {
 // ------------------------------------------------------------
 
 /**
- * Luo projektin hankintasuunnitelmaan materiaalirivit rakenteiden
- * materiaalitarpeesta. Nimikkeen olemassa olevan rivin määrä päivitetään
- * (vaihe, toimittaja ja takarajat säilyvät); uusille nimikkeille luodaan rivi.
- * Nimikkeitä, joita ei enää tarvita, ei poisteta, vaan ne jäävät näkyviin.
+ * Luo projektin hankintasuunnitelmaan rivit määräluetteloista:
+ *  - materiaalitarpeesta rivi per nimike (MATERIAALI)
+ *  - kiinteähintaisista riveistä (esim. tarjouslaskurin) rivi per rakenneosa,
+ *    litteroineen ja kustannuksineen. Tehdastyö jätetään pois, koska sitä ei
+ *    hankita; aliurakka on työsuorite.
+ * Olemassa olevan rivin määrä (ja kiinteän rivin kustannus) päivitetään, ja
+ * vaihe, toimittaja ja takarajat säilyvät. Rivejä, joita ei enää tarvita, ei
+ * poisteta, vaan ne jäävät näkyviin.
  */
 export async function luoHankinnatMateriaalitarpeesta(formData: FormData) {
   const k = kentat(formData);
   const projectId = k.projectId!;
-  const { tarve } = await laskeRakennukset({ projectId });
-  if (tarve.length === 0) palaa(k.paluu, "Rakennusten määräluettelot ovat tyhjiä, joten materiaalitarvetta ei ole");
+  const { tarve, kiinteat: kaikkiKiinteat } = await laskeRakennukset({ projectId });
+  const kiinteat = kaikkiKiinteat.filter((r) => r.laji !== "TEHDASTYO" && r.maara !== 0);
+  if (tarve.length === 0 && kiinteat.length === 0) palaa(k.paluu, "Rakennusten määräluetteloista ei synny hankittavaa");
 
   await prisma.$transaction(async (tx) => {
     const plan = await tx.procurementPlan.upsert({ where: { projectId }, create: { projectId }, update: {} });
@@ -282,7 +287,34 @@ export async function luoHankinnatMateriaalitarpeesta(formData: FormData) {
         });
       }
     }
-  });
+
+    const kiinteatOlemassa = await tx.procurementItem.findMany({ where: { procurementPlanId: plan.id, structureTypeId: { not: null } } });
+    const rakenneosittain = new Map(kiinteatOlemassa.map((r) => [r.structureTypeId!, r]));
+    for (const r of kiinteat) {
+      const o = r.rakenneosa;
+      const data = {
+        quantity: Math.round(r.maara * 1000) / 1000,
+        unit: o.unit,
+        costCents: Math.round(r.summaSentit),
+        littera: o.littera?.code ?? null,
+      };
+      const rivi = rakenneosittain.get(o.id);
+      if (rivi) {
+        await tx.procurementItem.update({ where: { id: rivi.id }, data });
+      } else {
+        await tx.procurementItem.create({
+          data: {
+            ...data,
+            procurementPlanId: plan.id,
+            structureTypeId: o.id,
+            kind: r.laji === "ALIURAKKA" ? "TYOSUORITE" : "MATERIAALI",
+            description: o.name,
+            notes: `Määräluettelosta: ${o.code}`,
+          },
+        });
+      }
+    }
+  }, { timeout: 30000 });
   revalidatePath(`/projektit/${projectId}`, "layout");
   revalidatePath("/henkilot", "layout");
   palaa(k.paluu);

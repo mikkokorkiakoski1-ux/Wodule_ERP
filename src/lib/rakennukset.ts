@@ -5,10 +5,12 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
+  laskeKiinteatRivit,
   laskeKustannus,
   laskeMateriaalitarve,
   valitseHinnasto,
   type Hinnat,
+  type KiinteaRivi,
   type Kustannus,
   type Materiaalitarve,
 } from "@/lib/rakenteet";
@@ -16,6 +18,7 @@ import {
 /** Rakenneosa (StructureType) materiaaliluetteloineen (laskennan tarvitsema muoto). */
 export const RAKENNEOSA_INCLUDE = {
   materials: { include: { product: true }, orderBy: { seq: "asc" } },
+  littera: true,
 } satisfies Prisma.StructureTypeInclude;
 
 export const MAARARIVI_INCLUDE = {
@@ -50,6 +53,7 @@ export async function haeHinnoittelu(paiva = new Date()): Promise<Hinnoittelu> {
 export interface RakennuksenLaskenta {
   rakennus: RakennusOsineen;
   tarve: Materiaalitarve[];
+  kiinteat: KiinteaRivi[];
   kustannus: Kustannus;
 }
 
@@ -57,6 +61,8 @@ export interface Laskenta {
   rakennukset: RakennuksenLaskenta[];
   /** Kaikkien rakennusten materiaalitarve yhteensä. */
   tarve: Materiaalitarve[];
+  /** Kiinteähintaiset rivit (esim. tarjouslaskurin) rakenneosittain, litteroittain. */
+  kiinteat: KiinteaRivi[];
   kustannus: Kustannus;
   hinnoittelu: Hinnoittelu;
 }
@@ -73,9 +79,11 @@ export async function laskeRakennukset(where: Prisma.BuildingWhereInput): Promis
     rakennukset: rakennukset.map((rakennus) => ({
       rakennus,
       tarve: laskeMateriaalitarve(rakennus.parts),
+      kiinteat: laskeKiinteatRivit(rakennus.parts),
       kustannus: laskeKustannus(rakennus.parts, hinnat, tuntihintaSentit),
     })),
     tarve: laskeMateriaalitarve(kaikkiOsat),
+    kiinteat: laskeKiinteatRivit(kaikkiOsat),
     kustannus: laskeKustannus(kaikkiOsat, hinnat, tuntihintaSentit),
     hinnoittelu,
   };
@@ -113,7 +121,19 @@ export const RAKENNEKATEGORIAT: Record<string, string> = {
 
 export const RAKENNEOSAN_LAJIT: Record<string, string> = { RAKENNE: "Rakenne", OSTONIMIKE: "Ostonimike" };
 
-export const MAARAN_LAHTEET: Record<string, string> = { KASIN: "Käsin", BIM: "BIM" };
+export const MAARAN_LAHTEET: Record<string, string> = { KASIN: "Käsin", BIM: "BIM", LASKURI: "Laskuri" };
+
+export const KUSTANNUSLAJIT: Record<string, string> = { MATERIAALI: "Materiaali / osto", TEHDASTYO: "Tehdastyö", ALIURAKKA: "Aliurakka" };
+
+/** Litteran näyttönimi, esim. "3500 Elementtituotanto". */
+export function litteranNimi(l: { code: string; name: string } | null | undefined): string {
+  return l ? `${l.code} ${l.name}` : "Ei litteraa";
+}
+
+/** Lajittelu litteran koodin mukaan (numeerisesti), litterattomat viimeisiksi. */
+export function litterajarjestys(a: { code: string } | null | undefined, b: { code: string } | null | undefined): number {
+  return (a?.code ?? "~").localeCompare(b?.code ?? "~", "fi", { numeric: true });
+}
 
 /** Rakennuksen näyttönimi: "A – Paritalo" tai pelkkä tunnus. */
 export function rakennuksenNimi(r: { code: string; name: string | null }): string {

@@ -54,6 +54,16 @@ export function Virhe({ viesti }: { viesti?: string }) {
   );
 }
 
+/** Näyttää ?ilmoitus=-parametrin viestin (onnistunut toiminto). */
+export function Ilmoitus({ viesti }: { viesti?: string }) {
+  if (!viesti) return null;
+  return (
+    <div role="status" className="card border-good px-4 py-3 text-sm text-good">
+      {viesti}
+    </div>
+  );
+}
+
 /** Henkilövalinta lomakkeisiin. Ei-aktiiviset näytetään vain, jos ne ovat jo valittuna. */
 export function HenkiloValinta({
   henkilot,

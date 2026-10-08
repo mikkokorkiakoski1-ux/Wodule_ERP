@@ -5,13 +5,16 @@ import { usePathname } from "next/navigation";
 import { WoduleLogo } from "@/components/WoduleLogo";
 
 // Sivunavigaatio mirrorii suoraan liitteenä olleen kaavion rakennetta
-// (docs/rakennekaavio.jpg). Pidä tämä ajan tasalla, jos kaavio muuttuu -
+// (docs/rakennekaavio.png, generoidaan docs/rakennekaavio.mjs:stä). Pidä tämä ajan tasalla, jos kaavio muuttuu -
 // se on ainoa paikka, jossa koko sivukartta on kirjoitettu auki.
 const SECTIONS = [
   {
     title: "Asiakkuuksien hallinta",
     href: "/asiakkuuksien-hallinta",
-    children: [{ title: "Tarjoukset", href: "/asiakkuuksien-hallinta/tarjoukset" }],
+    children: [
+      { title: "Tarjoukset", href: "/asiakkuuksien-hallinta/tarjoukset" },
+      { title: "Tarjouslaskenta", href: "/asiakkuuksien-hallinta/tarjouslaskenta" },
+    ],
   },
   {
     // Pääobjekti: rakennukset, aikataulu, hankinnat ja tuotanto kulkevat projektin kautta.

@@ -12,7 +12,7 @@ import { createComplaint, updateComplaintStatus } from "@/lib/actions/reklamaati
 import { ELEMENTIN_TILAT, RAKENNUKSEN_TILAT, RAKENNUS_INCLUDE, haeHinnoittelu, rakennuksenNimi } from "@/lib/rakennukset";
 import { laskeKustannus, laskeMateriaalitarve } from "@/lib/rakenteet";
 import { euro, maara, pvm, syoteLuku, syotePvm } from "@/lib/muotoilu";
-import { Kentta, Virhe } from "@/components/projektinhallinta";
+import { Ilmoitus, Kentta, Virhe } from "@/components/projektinhallinta";
 import { AutoSubmitSelect } from "@/components/AutoSubmitSelect";
 import { KustannusErittely, Maaraluettelo, MateriaalitarveTaulukko, RakennusLomake, Tunnusluku } from "@/components/rakennukset";
 
@@ -30,7 +30,7 @@ export default async function RakennusPage({
   searchParams,
 }: {
   params: { projektiId: string; rakennusId: string };
-  searchParams: { virhe?: string; muokkaa?: string; elementti?: string };
+  searchParams: { virhe?: string; muokkaa?: string; elementti?: string; ilmoitus?: string };
 }) {
   const rakennus = await prisma.building.findFirst({
     where: { id: params.rakennusId, projectId: params.projektiId },
@@ -48,7 +48,7 @@ export default async function RakennusPage({
   if (!rakennus) notFound();
 
   const [rakenneosat, pohjat, hinnoittelu] = await Promise.all([
-    prisma.structureType.findMany({ where: { active: true }, orderBy: [{ kind: "asc" }, { code: "asc" }] }),
+    prisma.structureType.findMany({ where: { active: true }, include: { littera: true }, orderBy: [{ kind: "asc" }, { code: "asc" }] }),
     prisma.qaChecklist.findMany({ where: { isTemplate: true }, orderBy: { title: "asc" } }),
     haeHinnoittelu(),
   ]);
@@ -63,6 +63,7 @@ export default async function RakennusPage({
   return (
     <>
       <Virhe viesti={searchParams.virhe} />
+      <Ilmoitus viesti={searchParams.ilmoitus} />
 
       <div className="flex items-end justify-between gap-4">
         <div>
@@ -112,8 +113,13 @@ export default async function RakennusPage({
 
       <div className="grid grid-cols-[2fr_1fr] gap-4">
         <div className="card p-5 flex flex-col gap-3">
-          <h3 className="font-semibold">Määräluettelo</h3>
-          <Maaraluettelo rakennus={rakennus} rakenneosat={rakenneosat} paluu={polku} muokkaa={searchParams.muokkaa} />
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="font-semibold">Määräluettelo</h3>
+            <Link href={`/asiakkuuksien-hallinta/tarjouslaskenta?rakennus=${rakennus.id}`} className="btn btn-secondary btn-sm">
+              {rakennus.laskentaSyote ? "Avaa tarjouslaskenta" : "Laske tarjouslaskurilla"}
+            </Link>
+          </div>
+          <Maaraluettelo rakennus={rakennus} rakenneosat={rakenneosat} hinnoittelu={hinnoittelu} paluu={polku} muokkaa={searchParams.muokkaa} />
         </div>
         <div className="card p-5 flex flex-col gap-3">
           <h3 className="font-semibold">Omakustannus</h3>
