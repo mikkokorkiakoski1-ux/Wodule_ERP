@@ -18,7 +18,7 @@ import {
   rakennuksenNimi,
 } from "@/lib/rakennukset";
 import { LASKENTARIVIT } from "@/lib/tarjouslaskenta";
-import { yksikkokustannus } from "@/lib/rakenteet";
+import { materiaalienYksikkokustannus, yksikkokustannus } from "@/lib/rakenteet";
 import { euro, maara, syoteLuku } from "@/lib/muotoilu";
 import { Kentta, Virhe } from "@/components/projektinhallinta";
 import { KustannusErittely } from "@/components/rakennukset";
@@ -59,6 +59,15 @@ export default async function RakenneosaPage({
   const muokattava = osa.materials.find((m) => m.id === searchParams.muokkaa);
   const nimike = ostonimike ? osa.materials[0]?.product : undefined;
   const kiintea = osa.unitPriceCents !== null;
+  // Kiinteän hinnan vertailu materiaaliluettelon hinnaston hintaan.
+  const materiaalitK = kiintea && osa.materials.length ? materiaalienYksikkokustannus(osa, hinnoittelu.hinnat) : null;
+  const materiaalit = materiaalitK
+    ? {
+        sentit: materiaalitK.yhteensaSentit,
+        puuttuu: materiaalitK.puuttuvatHinnat.length > 0,
+        ero: materiaalitK.yhteensaSentit ? (osa.unitPriceCents! - materiaalitK.yhteensaSentit) / materiaalitK.yhteensaSentit : 0,
+      }
+    : null;
   const laskurinRivi = osa.laskuriAvain ? LASKENTARIVIT.find((l) => l.avain === osa.laskuriAvain) : undefined;
 
   const yhteisetKentat = (
@@ -149,7 +158,9 @@ export default async function RakenneosaPage({
               <p className="text-sm text-critical">Ostonimikkeeltä puuttuu nimike. Valitse se perustiedoista.</p>
             )}
           </div>
-        ) : kiintea ? (
+        ) : (
+          <div className="flex flex-col gap-4">
+          {kiintea && (
           <div className="card p-5 flex flex-col gap-2 text-sm">
             <h2 className="font-semibold">Kiinteä yksikköhinta</h2>
             <p>
@@ -157,9 +168,21 @@ export default async function RakenneosaPage({
               {KUSTANNUSLAJIT[osa.costType]}
             </p>
             <p className="text-ink-2">
-              Rivin hinta on määrä × kiinteä yksikköhinta. Materiaaliluetteloa ei käytetä, eikä rakenneosa näy materiaalitarpeessa
-              vaan kiinteähintaisissa riveissä, joista luodaan hankintarivit litteroittain.
+              Rivin hinta on määrä × kiinteä yksikköhinta. Materiaaliluettelo ei vaikuta hintaan, mutta siitä lasketaan
+              materiaalitarve nimikkeittäin.{" "}
+              {osa.materials.length > 0
+                ? "Rakenneosa hankitaan nimikkeinä materiaalitarpeen kautta."
+                : "Ilman materiaaliluetteloa rakenneosa hankitaan kokonaisuutena omana hankintarivinään litteroittain."}
             </p>
+            {osa.materials.length > 0 && materiaalit && (
+              <p className={Math.abs(materiaalit.ero) > 0.15 ? "text-critical" : "text-ink-2"}>
+                Materiaalit hinnastolla {euro(materiaalit.sentit)} / {osa.unit}
+                {materiaalit.puuttuu && " (osalta nimikkeistä puuttuu hinta)"} ·{" "}
+                {materiaalit.ero >= 0 ? "kiinteä hinta ylittää" : "materiaalit ylittävät kiinteän hinnan"}{" "}
+                {Math.abs(Math.round(materiaalit.ero * 100))} %
+                {osa.costType !== "MATERIAALI" && " (kiinteä hinta on " + KUSTANNUSLAJIT[osa.costType].toLowerCase() + "a)"}
+              </p>
+            )}
             {laskurinRivi && (
               <p className="text-ink-2">
                 Tarjouslaskurin rivi <span className="font-mono">{laskurinRivi.avain}</span>: laskuri laskee määrän rakennuksen
@@ -168,9 +191,10 @@ export default async function RakenneosaPage({
               </p>
             )}
           </div>
-        ) : (
+          )}
           <div className="card p-5 flex flex-col gap-3">
             <h2 className="font-semibold">Materiaaliluettelo per {osa.unit}</h2>
+            {kiintea && <p className="text-xs text-ink-2 -mt-2">Vain materiaalitarvetta ja hankintoja varten; ei vaikuta hintaan.</p>}
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase text-ink-muted font-mono border-b border-line">
@@ -261,6 +285,7 @@ export default async function RakenneosaPage({
                 .
               </p>
             )}
+          </div>
           </div>
         )}
 

@@ -285,6 +285,25 @@ async function main() {
 
   console.log("Luodaan tarjouslaskurin litterat ja laskentarivit kirjastoon...");
   await varmistaLaskurinKirjasto(prisma);
+  // Esimerkki: laskurin kiinteähintaisille riveille materiaaliluettelo. Hinta pysyy
+  // laskurin mukaisena, mutta materiaalitarve ja hankinnat saadaan nimiketasolle.
+  const LASKURIN_MATERIAALIT: Record<string, [string, number, number][]> = {
+    "3500-01": [["RUNKO-48x198", 2.6, 10], ["VILLA-200", 1, 5], ["TUULISUOJA-25", 1, 5], ["HOYRYNSULKU", 1.1, 0], ["KIPSI-13", 1, 8]],
+    "3500-05": [["VERHOUS-UYK", 1, 10]],
+  };
+  for (const [avain, materiaalit] of Object.entries(LASKURIN_MATERIAALIT)) {
+    const osa = await prisma.structureType.findUniqueOrThrow({ where: { laskuriAvain: avain } });
+    await prisma.structureMaterial.createMany({
+      data: materiaalit.map(([koodi, menekki, hukka], i) => ({
+        structureTypeId: osa.id,
+        productId: nimike.get(koodi)!,
+        quantityPerUnit: menekki,
+        wastePct: hukka,
+        seq: i + 1,
+      })),
+    });
+  }
+
   // Esimerkkikirjaston omat rakenneosat samoihin litteroihin.
   const OMAT_LITTERAT: Record<string, string> = { "US-1": "3500", "VS-1": "3500", "AP-1": "3300", "YP-1": "3700", "IK-1": "4100", "UO-1": "4300", "ILP-35": "7110" };
   for (const [koodi, littera] of Object.entries(OMAT_LITTERAT)) {

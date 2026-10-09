@@ -51,7 +51,10 @@ rakennuksen päämitoista, katosta, ikkunoista, märkätiloista ja varusteista 1
 laskentariviä 29 litteraan. Jokainen rivi on kirjastossa kiinteähintainen rakenneosa
 (`laskuriAvain`), joten hinnat ovat muokattavissa ilman koodimuutosta. Tallennettuna
 rivit tulevat rakennuksen määräluetteloon (source LASKURI), ja määräluettelo,
-omakustannus, kate ja hankinnat lajitellaan litteroittain.
+omakustannus, kate ja hankinnat lajitellaan litteroittain. Laskurin rivin hinta pysyy
+kiinteänä, mutta rivi-rakenneosalle voi antaa materiaaliluettelon: se ei vaikuta hintaan,
+mutta tuottaa materiaalitarpeen ja hankinnat nimikkeittäin (rakennus → rivi → rakenneosa →
+nimikkeet).
 
 **Manuaalinen laskenta ja pohjat.** Rakennuksen määräluettelon rivi voi olla myös
 nimike (hinta hinnastosta) tai vapaa rivi (oma kuvaus ja hinta), ja jokaiselle

@@ -528,7 +528,10 @@ export function KiinteatRivitTaulukko({ rivit }: { rivit: KiinteaRivi[] }) {
                   )}
                   <span className={r.rakenneosaId ? "text-ink-2" : ""}>{r.nimi}</span>
                 </td>
-                <td className="p-3 text-ink-2">{KUSTANNUSLAJIT[r.laji]}</td>
+                <td className="p-3 text-ink-2">
+                  {KUSTANNUSLAJIT[r.laji]}
+                  {r.materiaaleina && <div className="text-xs text-ink-muted">hankitaan nimikkeinä</div>}
+                </td>
                 <td className="p-3 text-right font-mono whitespace-nowrap">
                   {maara(r.maara)} {r.yksikko}
                 </td>

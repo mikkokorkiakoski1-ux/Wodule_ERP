@@ -27,7 +27,7 @@ export default async function MateriaalitarvePage({
   const valittu = laskenta.rakennukset.find((r) => r.rakennus.id === searchParams.rakennus);
   const tarve = valittu ? valittu.tarve : laskenta.tarve;
   const kiinteat = valittu ? valittu.kiinteat : laskenta.kiinteat;
-  const hankittavia = laskenta.tarve.length + laskenta.kiinteat.filter((r) => r.laji !== "TEHDASTYO").length;
+  const hankittavia = laskenta.tarve.length + laskenta.kiinteat.filter((r) => r.laji !== "TEHDASTYO" && !r.materiaaleina).length;
   const kustannus = valittu ? valittu.kustannus : laskenta.kustannus;
   const hankitut = new Map(hankinnat.map((h) => [h.productId!, h.quantity]));
   const eriavat = laskenta.tarve.filter((t) => hankitut.get(t.nimike.id) !== t.maara).length;
@@ -40,7 +40,8 @@ export default async function MateriaalitarvePage({
         <div>
           <h2 className="text-xl">Materiaalitarve</h2>
           <p className="text-ink-2 text-sm mt-1 max-w-3xl">
-            Rakennusten määräluetteloista lasketaan rakenneosien materiaaliluetteloilla (menekki × määrä, hukka mukaan lukien)
+            Rakennusten määräluetteloista lasketaan rakenneosien materiaaliluetteloilla (menekki × määrä, hukka mukaan lukien,
+            myös kiinteähintaisilta rakenneosilta)
             nimikkeittäin. Hankintasuunnitelmaan voi luoda tarpeesta materiaalirivit. Jo luoduilla nimikkeillä päivittyy vain
             määrä, ja vaihe, toimittaja ja takarajat säilyvät.
           </p>
@@ -72,6 +73,7 @@ export default async function MateriaalitarvePage({
           <div className="px-3 pt-5 font-heading font-semibold">Kiinteähintaiset rivit litteroittain</div>
           <p className="px-3 text-xs text-ink-2">
             Esimerkiksi tarjouslaskurin rivit. Hankintasuunnitelmaan tulevat ostot ja aliurakat litteroineen; tehdastyötä ei hankita.
+            Jos rakenneosalla on materiaaliluettelo, se hankitaan nimikkeinä yllä olevasta materiaalitarpeesta.
           </p>
           <KiinteatRivitTaulukko rivit={kiinteat} />
         </div>

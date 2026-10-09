@@ -126,6 +126,10 @@ datalla.
 - Laskurin rivit voi muuttaa manuaalisiksi, ja käsin muokattu laskurin rivi säilyy laskennan uudelleentallennuksessa.
 - Laskentapohjat: rakennuksen laskenta (rivit, kate, laskurin syöte) tallennetaan nimettynä pohjana ja otetaan toisen rakennuksen pohjaksi (lisää tai korvaa). Pohjat ovat myös tiedonsiirrossa.
 
+**Tilanne 9.10.2026 (2).** Laskurin riveille materiaaliluettelot: kiinteä hinta pysyy
+laskurin mukaisena, mutta materiaaliluettelo tuottaa materiaalitarpeen ja hankinnat
+nimikkeittäin. Rakenneosan sivu vertaa materiaalien hinnastohintaa kiinteään hintaan.
+
 Seuraavaksi (tauon jälkeen):
 
 1. Tuo tarjouslaskurin laskentarivit kirjastoon (Rakenneosat-sivun painike) ja

@@ -12,11 +12,17 @@
  * Rivin oma yksikköhinta (unitPriceCents) korvaa aina muun hinnan, ja rivin
  * oma kustannuslaji ja littera korvaavat rakenneosan tiedot.
  *
- * Kiinteähintainen rivi (oma hinta, kiinteähintainen rakenneosa tai vapaa
- * rivi) hinnoitellaan kokonaisuutena: materiaaliluetteloa ei käytetä, eikä
- * rivi näy materiaalitarpeessa vaan kiinteähintaisissa riveissä
- * (laskeKiinteatRivit). Nimikerivit näkyvät aina materiaalitarpeessa.
- * Kustannuslaji erittelee tehdastyön ja aliurakan.
+ * Hinnoittelu ja materiaalitarve ovat erillään:
+ *  - Hinta: kiinteähintainen rivi (oma hinta, kiinteähintainen rakenneosa
+ *    tai vapaa rivi) hinnoitellaan kokonaisuutena, eikä materiaaliluettelo
+ *    vaikuta hintaan. Näin tarjouslaskurin rivien hinnat pysyvät laskurin
+ *    mukaisina.
+ *  - Materiaalitarve: rakenneosan materiaaliluettelo lasketaan aina
+ *    nimikkeittäin, myös kiinteähintaisilta riveiltä. Nimikerivit näkyvät
+ *    aina materiaalitarpeessa.
+ * Kiinteähintaiset rivit (laskeKiinteatRivit) kertovat, hankitaanko rivi
+ * rakenneosana vai nimikkeinä (materiaaleina = rakenneosalla on
+ * materiaaliluettelo). Kustannuslaji erittelee tehdastyön ja aliurakan.
  *
  * Puhtaita funktioita ilman tietokantaa, jotta ne voi testata
  * (src/lib/rakenteet.test.ts). Tietokantahaut ovat tiedostossa
@@ -202,7 +208,8 @@ export function laskeMateriaalitarve(osat: Maararivi[]): Materiaalitarve[] {
       lisaa(osa.product, osa.quantity, "suora rivi");
       continue;
     }
-    if (!osa.structureType || onKiintea(osa)) continue;
+    // Materiaaliluettelo kertoo materiaalitarpeen myös kiinteähintaiselle riville; hinta ei vaikuta tähän.
+    if (!osa.structureType) continue;
     for (const m of osa.structureType.materials) lisaa(m.product, materiaalinMaara(osa.quantity, m), osa.structureType.code);
   }
   return [...tarpeet.values()]
@@ -223,6 +230,11 @@ export interface KiinteaRivi {
   /** Tarkka summa senteissä (pyöristys vasta yhteissummassa). */
   summaSentit: number;
   laji: Kustannuslaji;
+  /**
+   * Rakenneosalla on materiaaliluettelo: se hankitaan nimikkeinä
+   * materiaalitarpeen kautta, ei rakenneosana.
+   */
+  materiaaleina: boolean;
 }
 
 /**
@@ -247,6 +259,7 @@ export function laskeKiinteatRivit(osat: Maararivi[]): KiinteaRivi[] {
       maara: 0,
       summaSentit: 0,
       laji,
+      materiaaleina: (o.structureType?.materials.length ?? 0) > 0,
     };
     r.maara += o.quantity;
     r.summaSentit += o.quantity * (o.unitPriceCents ?? o.structureType?.unitPriceCents ?? 0);
@@ -298,6 +311,14 @@ export function laskeKustannus(osat: Maararivi[], hinnat: Hinnat, tuntihintaSent
 /** Yhden rakenneosan omakustannus yksikköä kohti (Rakenneosat-sivun hinta). */
 export function yksikkokustannus(tyyppi: Rakenneosa, hinnat: Hinnat, tuntihintaSentit: number | null): Kustannus {
   return laskeKustannus([{ quantity: 1, structureType: tyyppi }], hinnat, tuntihintaSentit);
+}
+
+/**
+ * Rakenneosan materiaaliluettelon hinta yksikköä kohti hinnaston hinnoilla
+ * kiinteästä hinnasta riippumatta (vertailuun kiinteän hinnan kanssa).
+ */
+export function materiaalienYksikkokustannus(tyyppi: Rakenneosa, hinnat: Hinnat): Kustannus {
+  return laskeKustannus([{ quantity: 1, structureType: { ...tyyppi, unitPriceCents: null, laborHoursPerUnit: 0 } }], hinnat, null);
 }
 
 /** Myyntihinta katteella: omakustannus / (1 - kate). */

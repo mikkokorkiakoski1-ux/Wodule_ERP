@@ -305,7 +305,7 @@ export default async function RakenneosatPage({ searchParams }: { searchParams: 
                       </td>
                       <td className="p-3 text-ink-2 text-xs">
                         {kiintea
-                          ? `Kiinteä hinta · ${KUSTANNUSLAJIT[t.costType]}`
+                          ? `Kiinteä hinta · ${KUSTANNUSLAJIT[t.costType]}${t.materials.length ? ` · ${t.materials.length} materiaalia (tarve)` : ""}`
                           : t.kind === "OSTONIMIKE"
                             ? `Nimike ${t.materials[0]?.product.code ?? "–"}`
                             : `${t.materials.length} materiaalia · ${maara(t.laborHoursPerUnit)} h / ${t.unit}`}

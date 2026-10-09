@@ -312,7 +312,8 @@ export async function luoTarkastuslistaPohjasta(formData: FormData) {
  *  - materiaalitarpeesta rivi per nimike (MATERIAALI)
  *  - kiinteähintaisista riveistä (esim. tarjouslaskurin) rivi per rakenneosa,
  *    litteroineen ja kustannuksineen. Tehdastyö jätetään pois, koska sitä ei
- *    hankita; aliurakka on työsuorite.
+ *    hankita; aliurakka on työsuorite. Kiinteähintainen rakenneosa, jolla on
+ *    materiaaliluettelo, hankitaan nimikkeinä (materiaalitarve), ei rakenneosana.
  * Olemassa olevan rivin määrä (ja kiinteän rivin kustannus) päivitetään, ja
  * vaihe, toimittaja ja takarajat säilyvät. Rivejä, joita ei enää tarvita, ei
  * poisteta, vaan ne jäävät näkyviin.
@@ -321,7 +322,8 @@ export async function luoHankinnatMateriaalitarpeesta(formData: FormData) {
   const k = kentat(formData);
   const projectId = k.projectId!;
   const { tarve, kiinteat: kaikkiKiinteat } = await laskeRakennukset({ projectId });
-  const kiinteat = kaikkiKiinteat.filter((r) => r.laji !== "TEHDASTYO" && r.maara !== 0);
+  // Tehdastyötä ei hankita. Rakenneosa, jolla on materiaaliluettelo, hankitaan nimikkeinä materiaalitarpeen kautta.
+  const kiinteat = kaikkiKiinteat.filter((r) => r.laji !== "TEHDASTYO" && !r.materiaaleina && r.maara !== 0);
   if (tarve.length === 0 && kiinteat.length === 0) palaa(k.paluu, "Rakennusten määräluetteloista ei synny hankittavaa");
 
   await prisma.$transaction(async (tx) => {

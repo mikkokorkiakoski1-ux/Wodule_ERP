@@ -4,6 +4,7 @@ import {
   laskeKustannus,
   laskeMateriaalitarve,
   laskeTuntimenekki,
+  materiaalienYksikkokustannus,
   myyntihinta,
   valitseHinnasto,
   yksikkokustannus,
@@ -174,15 +175,16 @@ describe("kiinteähintaiset rakenneosat", () => {
   const tehdastyo: Rakenneosa = { ...valmisseina, id: "k2", code: "3801-01", materials: [], unitPriceCents: 10000, costType: "TEHDASTYO", littera: { code: "3801", name: "Tilaelementit" } };
   const aliurakka: Rakenneosa = { ...valmisseina, id: "k3", code: "7300-01", materials: [], unitPriceCents: 100, costType: "ALIURAKKA", littera: { code: "7300", name: "Sähkötyöt" } };
 
-  it("hinnoittelee määrä × kiinteä hinta ja ohittaa materiaaliluettelon", () => {
+  it("hinnoittelee määrä × kiinteä hinta; materiaaliluettelo vain materiaalitarpeeseen", () => {
     const rivit: Maararivi[] = [
       { quantity: 10, structureType: valmisseina },
       { quantity: 5, structureType: valmisseina },
       { quantity: 2, structureType: tehdastyo },
       { quantity: 3000, structureType: aliurakka },
     ];
-    expect(laskeMateriaalitarve(rivit)).toEqual([]);
-    const k = laskeKustannus(rivit, new Map(), null);
+    // Materiaaliluettelo (runko 99 jm / m2) näkyy materiaalitarpeessa, mutta ei vaikuta hintaan.
+    expect(laskeMateriaalitarve(rivit)).toEqual([{ nimike: runko, maara: 15 * 99, rakenteet: ["3500-01"] }]);
+    const k = laskeKustannus(rivit, new Map([["p1", 100000]]), null);
     expect(k.materiaalitSentit).toBe(15 * 4144);
     expect(k.tyoSentit).toBe(20000);
     expect(k.aliurakkaSentit).toBe(300000);
@@ -251,13 +253,28 @@ describe("manuaaliset rivit (nimike, vapaa rivi, oma hinta)", () => {
     expect(kiinteat[0]).toMatchObject({ rakenneosaId: null, koodi: null, nimi: "Asennusmatka", yksikko: "erä", maara: 3, summaSentit: 75000, laji: "ALIURAKKA", littera });
   });
 
-  it("oma hinta korvaa rakenneosan materiaaliluettelon ja työtunnit", () => {
+  it("oma hinta korvaa rakenneosan hinnan ja työtunnit, materiaalitarve säilyy", () => {
     const rivit: Maararivi[] = [{ quantity: 10, structureType: ulkoseina, unitPriceCents: 10000 }];
     const k = laskeKustannus(rivit, hinnat, 5500);
     expect(k.yhteensaSentit).toBe(100000);
     expect(k.tunnit).toBe(0);
-    expect(laskeMateriaalitarve(rivit)).toEqual([]);
-    expect(laskeKiinteatRivit(rivit)[0]).toMatchObject({ rakenneosaId: "s1", koodi: "US-1", maara: 10, summaSentit: 100000 });
+    expect(laskeMateriaalitarve(rivit).map((t) => [t.nimike.code, t.maara])).toEqual([
+      ["KIPSI-13", 10],
+      ["RUNKO-48x198", 27.5],
+      ["VILLA-200", 10.5],
+    ]);
+    expect(laskeKiinteatRivit(rivit)[0]).toMatchObject({ rakenneosaId: "s1", koodi: "US-1", maara: 10, summaSentit: 100000, materiaaleina: true });
+  });
+
+  it("kiinteä rivi ilman materiaaliluetteloa hankitaan rakenneosana", () => {
+    const rivit: Maararivi[] = [{ quantity: 2, description: "Kuljetus", unitPriceCents: 1000 }];
+    expect(laskeKiinteatRivit(rivit)[0].materiaaleina).toBe(false);
+  });
+
+  it("materiaalien yksikkökustannus kiinteästä hinnasta riippumatta", () => {
+    const kiintea: Rakenneosa = { ...ulkoseina, unitPriceCents: 1, laborHoursPerUnit: 5 };
+    // 2,75 × 350 + 1,05 × 900 + 1 × 600 = 2507,5 -> 2508; työtunnit eivät mukana
+    expect(materiaalienYksikkokustannus(kiintea, hinnat).yhteensaSentit).toBe(2508);
   });
 
   it("rivin oma littera ja kustannuslaji korvaavat rakenneosan tiedot", () => {
