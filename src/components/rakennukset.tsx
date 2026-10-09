@@ -14,7 +14,17 @@ import {
   type Hinnoittelu,
   type RakennusOsineen,
 } from "@/lib/rakennukset";
-import { laskeKustannus, type KiinteaRivi, type Kustannus, type Materiaalitarve } from "@/lib/rakenteet";
+import {
+  laskeKustannus,
+  rivinKoodi,
+  rivinLaji,
+  rivinLittera,
+  rivinNimi,
+  rivinYksikko,
+  type KiinteaRivi,
+  type Kustannus,
+  type Materiaalitarve,
+} from "@/lib/rakenteet";
 import { euro, maara, syoteLuku, syotePvm } from "@/lib/muotoilu";
 import { Kentta } from "@/components/projektinhallinta";
 
@@ -122,42 +132,74 @@ function valintaryhmat(osat: RakenneosaValinta[]): [string, RakenneosaValinta[]]
   return [...ryhmat.entries()].sort(([, a], [, b]) => litterajarjestys(a.littera, b.littera)).map(([o, r]) => [o, r.osat]);
 }
 
+type Rivi = RakennusOsineen["parts"][number];
+
+/** Rivin valinta-arvo lomakkeelle: "osa:<id>", "nimike:<id>" tai "" (vapaa rivi). */
+function kohdeArvo(o?: Rivi): string {
+  if (!o) return "";
+  if (o.structureTypeId) return `osa:${o.structureTypeId}`;
+  if (o.productId) return `nimike:${o.productId}`;
+  return "";
+}
+
+/**
+ * Rakennuksen määräluettelo litteroittain (tarjouslaskennan rivit) ja
+ * lisäys- tai muokkauslomake. Rivi on rakenneosa, nimike tai vapaa rivi;
+ * rivin oma hinta, littera ja kustannuslaji korvaavat oletukset.
+ * Muokattava rivi valitaan ?muokkaa=<rivin id> -parametrilla, ja uuden
+ * rivin litteran voi esivalita ?littera=<koodi> -parametrilla.
+ */
 export function Maaraluettelo({
   rakennus,
   rakenneosat,
+  nimikkeet = [],
+  litterat = [],
   hinnoittelu,
   paluu,
   muokkaa,
+  oletusLittera,
   lukittu = false,
+  naytaTyhjatLitterat = false,
 }: {
   rakennus: RakennusOsineen;
   rakenneosat: RakenneosaValinta[];
+  nimikkeet?: { id: string; code: string; name: string; unit: string }[];
+  litterat?: { id: string; code: string; name: string }[];
   hinnoittelu: Hinnoittelu;
   paluu: string;
   muokkaa?: string;
+  oletusLittera?: string;
   lukittu?: boolean;
+  /** Näytä kaikki litterat, myös tyhjät (manuaalinen laskenta: rivin voi lisätä mihin tahansa litteraan). */
+  naytaTyhjatLitterat?: boolean;
 }) {
   const muokattava = rakennus.parts.find((o) => o.id === muokkaa);
   const ankkuri = `osat-${rakennus.id}`;
+  const lomake = `lisaa-${rakennus.id}`;
   const erotin = paluu.includes("?") ? "&" : "?";
-  const rivinHinta = (o: (typeof rakennus.parts)[number]) =>
-    laskeKustannus([o], hinnoittelu.hinnat, hinnoittelu.tuntihintaSentit).yhteensaSentit;
+  const rivinHinta = (o: Rivi) => laskeKustannus([o], hinnoittelu.hinnat, hinnoittelu.tuntihintaSentit).yhteensaSentit;
+
   // Litteroittain (Talo 80), litterattomat viimeisenä; litteran sisällä rivien järjestys.
-  const ryhmat = new Map<string, { littera: (typeof rakennus.parts)[number]["structureType"]["littera"]; rivit: typeof rakennus.parts }>();
+  const ryhmat = new Map<string, { littera: { code: string; name: string } | null; rivit: Rivi[] }>();
+  if (naytaTyhjatLitterat) for (const l of litterat) ryhmat.set(l.code, { littera: l, rivit: [] });
   for (const o of rakennus.parts) {
-    const avain = o.structureType.littera?.code ?? "";
-    const r = ryhmat.get(avain) ?? { littera: o.structureType.littera, rivit: [] };
+    const l = rivinLittera(o);
+    const avain = l?.code ?? "";
+    const r = ryhmat.get(avain) ?? { littera: l, rivit: [] };
     r.rivit.push(o);
     ryhmat.set(avain, r);
   }
   const litteroittain = [...ryhmat.values()].sort((a, b) => litterajarjestys(a.littera, b.littera));
   const sarakkeita = lukittu ? 6 : 7;
+  const litteraIdKoodilla = (koodi?: string) => litterat.find((l) => l.code === koodi)?.id ?? "";
+  const lomakkeenLittera = muokattava ? muokattava.litteraId ?? "" : litteraIdKoodilla(oletusLittera);
+
   return (
     <div id={ankkuri} className="flex flex-col gap-3">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase text-ink-muted font-mono border-b border-line">
-            <th className="py-2 pr-3">Rakenneosa</th>
+            <th className="py-2 pr-3">Rivi</th>
             <th className="py-2 pr-3 text-right">Määrä</th>
             <th className="py-2 pr-3">Sijainti</th>
             <th className="py-2 pr-3">Lähde</th>
@@ -172,25 +214,45 @@ export function Maaraluettelo({
               <tr className="bg-surface-raised border-b border-line">
                 <td colSpan={5} className="py-1.5 pr-3 pl-1 font-mono text-xs font-semibold uppercase">
                   {litteranNimi(littera)}
+                  {!lukittu && littera && litterat.length > 0 && (
+                    <Link href={`${paluu}${erotin}littera=${littera.code}#${lomake}`} className="ml-3 normal-case font-sans font-normal underline text-ink-2">
+                      + rivi
+                    </Link>
+                  )}
                 </td>
-                <td className="py-1.5 pr-3 text-right font-mono text-xs font-semibold">{euro(rivit.reduce((s, o) => s + rivinHinta(o), 0))}</td>
+                <td className="py-1.5 pr-3 text-right font-mono text-xs font-semibold">
+                  {rivit.length ? euro(rivit.reduce((s, o) => s + rivinHinta(o), 0)) : "–"}
+                </td>
                 {!lukittu && <td />}
               </tr>
               {rivit.map((o) => {
                 const yhteensa = rivinHinta(o);
+                const laji = rivinLaji(o);
+                const koodi = rivinKoodi(o);
                 return (
                   <tr key={o.id} className={`border-b border-line last:border-0 ${o.id === muokkaa ? "bg-surface-raised" : ""}`}>
                     <td className="py-2 pr-3">
-                      <Link href={`/tuotehallinta/rakenneosat/${o.structureType.id}`} className="font-mono hover:underline">
-                        {o.structureType.code}
-                      </Link>{" "}
-                      <span className="text-ink-2">{o.structureType.name}</span>
-                      {o.structureType.costType === "TEHDASTYO" && <span className="badge info ml-2">tehdastyö</span>}
-                      {o.structureType.costType === "ALIURAKKA" && <span className="badge muted ml-2">aliurakka</span>}
+                      {koodi &&
+                        (o.structureType ? (
+                          <Link href={`/tuotehallinta/rakenneosat/${o.structureType.id}`} className="font-mono hover:underline mr-1">
+                            {koodi}
+                          </Link>
+                        ) : (
+                          <Link href={`/tuotehallinta/nimikkeisto/${o.productId}`} className="font-mono hover:underline mr-1">
+                            {koodi}
+                          </Link>
+                        ))}
+                      <span className={koodi ? "text-ink-2" : ""}>{rivinNimi(o)}</span>
+                      {!o.structureType && o.product && <span className="badge muted ml-2">nimike</span>}
+                      {!o.structureType && !o.product && <span className="badge muted ml-2">vapaa rivi</span>}
+                      {laji === "TEHDASTYO" && <span className="badge info ml-2">tehdastyö</span>}
+                      {laji === "ALIURAKKA" && <span className="badge muted ml-2">aliurakka</span>}
+                      {o.unitPriceCents !== null && (o.structureType || o.product) && <span className="badge info ml-2">oma hinta</span>}
+                      {(o.structureType || o.product) && o.description && <div className="text-xs text-ink-2">{o.description}</div>}
                       {o.notes && <div className="text-xs text-ink-muted">{o.notes}</div>}
                     </td>
                     <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
-                      {maara(o.quantity)} {o.structureType.unit}
+                      {maara(o.quantity)} {rivinYksikko(o)}
                     </td>
                     <td className="py-2 pr-3 text-ink-2">{o.location ?? "–"}</td>
                     <td className="py-2 pr-3">
@@ -202,7 +264,11 @@ export function Maaraluettelo({
                     <td className="py-2 pr-3 text-right font-mono">{euro(yhteensa)}</td>
                     {!lukittu && (
                       <td className="py-2 text-right whitespace-nowrap">
-                        <Link href={`${paluu}${erotin}muokkaa=${o.id}#${ankkuri}`} className="text-xs underline mr-3">
+                        <Link
+                          href={`${paluu}${erotin}muokkaa=${o.id}#${lomake}`}
+                          className="text-xs underline mr-3"
+                          title={o.source === "LASKURI" ? "Muokattu laskurin rivi muuttuu käsin syötetyksi" : undefined}
+                        >
                           Muokkaa
                         </Link>
                         <form action={poistaMaararivi} className="inline">
@@ -217,66 +283,116 @@ export function Maaraluettelo({
               })}
             </Fragment>
           ))}
-          {rakennus.parts.length === 0 && (
+          {rakennus.parts.length === 0 && !naytaTyhjatLitterat && (
             <tr>
               <td colSpan={sarakkeita} className="py-4 text-center text-ink-muted">
-                Määräluettelo on tyhjä. Laske se tarjouslaskurilla, lisää rakenneosat ja määrät käsin tai tuo ne BIM-mallin
-                määräluettelosta.
+                Määräluettelo on tyhjä. Laske se tarjouslaskurilla, ota pohjaksi tallennettu laskenta, lisää rivejä käsin tai tuo
+                BIM-mallin määräluettelo.
               </td>
             </tr>
           )}
         </tbody>
       </table>
 
-      {!lukittu &&
-        (rakenneosat.length === 0 ? (
-          <p className="text-sm text-ink-muted">
-            Lisää ensin rakenneosia:{" "}
-            <Link href="/tuotehallinta/rakenneosat" className="underline">
-              Tuotehallinta &raquo; Rakenneosat
-            </Link>
-            .
-          </p>
-        ) : (
-          <form key={muokattava?.id ?? "uusi"} action={tallennaMaararivi} className="grid grid-cols-[2fr_1fr_1fr_2fr_auto] gap-2 items-end">
-            {muokattava && <input type="hidden" name="id" value={muokattava.id} />}
-            <input type="hidden" name="buildingId" value={rakennus.id} />
-            <input type="hidden" name="paluu" value={paluu} />
-            <Kentta otsikko={muokattava ? "Muokkaa riviä" : "Lisää rakenneosa"}>
-              <select name="structureTypeId" defaultValue={muokattava?.structureTypeId ?? ""} required className="field">
-                <option value="" disabled>
-                  Valitse rakenneosa
+      {!lukittu && (
+        <form
+          id={lomake}
+          key={(muokattava?.id ?? "uusi") + (oletusLittera ?? "")}
+          action={tallennaMaararivi}
+          className="grid grid-cols-6 gap-2 items-end border-t border-line pt-3"
+        >
+          {muokattava && <input type="hidden" name="id" value={muokattava.id} />}
+          {muokattava && <input type="hidden" name="source" value={muokattava.source} />}
+          <input type="hidden" name="buildingId" value={rakennus.id} />
+          <input type="hidden" name="paluu" value={paluu} />
+          <Kentta otsikko={muokattava ? "Muokkaa riviä" : "Lisää rivi"} leveys={2}>
+            <select name="kohde" defaultValue={kohdeArvo(muokattava)} className="field">
+              <option value="">Vapaa rivi (oma kuvaus ja hinta)</option>
+              {valintaryhmat(rakenneosat).map(([otsikko, osat]) => (
+                <optgroup key={otsikko} label={`Rakenneosat · ${otsikko}`}>
+                  {osat.map((t) => (
+                    <option key={t.id} value={`osa:${t.id}`}>
+                      {t.code} {t.name} ({t.unit})
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+              {nimikkeet.length > 0 && (
+                <optgroup label="Nimikkeet (hinta hinnastosta)">
+                  {nimikkeet.map((n) => (
+                    <option key={n.id} value={`nimike:${n.id}`}>
+                      {n.code} {n.name} ({n.unit})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </Kentta>
+          <Kentta otsikko="Määrä *">
+            <input name="quantity" defaultValue={syoteLuku(muokattava?.quantity)} inputMode="decimal" required className="field" />
+          </Kentta>
+          <Kentta otsikko="Yksikkö (vapaa rivi)">
+            <input name="unit" defaultValue={muokattava?.unit ?? ""} placeholder="kpl, m2, erä" className="field" />
+          </Kentta>
+          <Kentta otsikko="Oma yksikköhinta (€)">
+            <input
+              name="unitPriceEuros"
+              defaultValue={muokattava?.unitPriceCents === null || !muokattava ? "" : syoteLuku(muokattava.unitPriceCents / 100)}
+              inputMode="decimal"
+              placeholder="tyhjä = kirjastosta"
+              className="field"
+            />
+          </Kentta>
+          <Kentta otsikko="Kustannuslaji">
+            <select name="costType" defaultValue={muokattava?.costType ?? ""} className="field">
+              <option value="">Oletus</option>
+              {Object.entries(KUSTANNUSLAJIT).map(([arvo, nimi]) => (
+                <option key={arvo} value={arvo}>
+                  {nimi}
                 </option>
-                {valintaryhmat(rakenneosat).map(([otsikko, osat]) => (
-                  <optgroup key={otsikko} label={otsikko}>
-                    {osat.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.code} {t.name} ({t.unit})
-                      </option>
-                    ))}
-                  </optgroup>
+              ))}
+            </select>
+          </Kentta>
+          <Kentta otsikko="Kuvaus (vapaa rivi: nimi)" leveys={2}>
+            <input name="description" defaultValue={muokattava?.description ?? ""} className="field" />
+          </Kentta>
+          {litterat.length > 0 && (
+            <Kentta otsikko="Littera">
+              <select name="litteraId" defaultValue={lomakkeenLittera} className="field">
+                <option value="">Rakenneosan littera</option>
+                {litterat.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.code} {l.name}
+                  </option>
                 ))}
               </select>
             </Kentta>
-            <Kentta otsikko="Määrä">
-              <input name="quantity" defaultValue={syoteLuku(muokattava?.quantity)} inputMode="decimal" required className="field" />
-            </Kentta>
-            <Kentta otsikko="Sijainti">
-              <input name="location" defaultValue={muokattava?.location ?? ""} placeholder="esim. 1. krs" className="field" />
-            </Kentta>
-            <Kentta otsikko="Huomiot">
-              <input name="notes" defaultValue={muokattava?.notes ?? ""} className="field" />
-            </Kentta>
-            <div className="flex gap-2">
-              <button className="btn btn-secondary btn-sm">{muokattava ? "Tallenna" : "Lisää"}</button>
-              {muokattava && (
-                <Link href={`${paluu}#${ankkuri}`} className="btn btn-ghost btn-sm">
-                  Peru
-                </Link>
-              )}
-            </div>
-          </form>
-        ))}
+          )}
+          <Kentta otsikko="Sijainti">
+            <input name="location" defaultValue={muokattava?.location ?? ""} placeholder="esim. 1. krs" className="field" />
+          </Kentta>
+          <Kentta otsikko="Huomiot">
+            <input name="notes" defaultValue={muokattava?.notes ?? ""} className="field" />
+          </Kentta>
+          <div className="flex gap-2">
+            <button className="btn btn-secondary btn-sm">{muokattava ? "Tallenna" : "Lisää"}</button>
+            {(muokattava || oletusLittera) && (
+              <Link href={`${paluu}#${ankkuri}`} className="btn btn-ghost btn-sm">
+                Peru
+              </Link>
+            )}
+          </div>
+        </form>
+      )}
+      {!lukittu && rakenneosat.length === 0 && nimikkeet.length === 0 && (
+        <p className="text-xs text-ink-muted">
+          Kirjastossa ei ole rakenneosia, joten vain vapaat rivit ovat käytössä:{" "}
+          <Link href="/tuotehallinta/rakenneosat" className="underline">
+            Tuotehallinta &raquo; Rakenneosat
+          </Link>
+          .
+        </p>
+      )}
     </div>
   );
 }
@@ -376,15 +492,15 @@ export function MateriaalitarveTaulukko({ tarve, hinnoittelu }: { tarve: Materia
   );
 }
 
-/** Kiinteähintaiset rivit (esim. tarjouslaskurin rivit) litteroittain välisummineen. */
+/** Kiinteähintaiset rivit (esim. tarjouslaskurin ja vapaat rivit) litteroittain välisummineen. */
 export function KiinteatRivitTaulukko({ rivit }: { rivit: KiinteaRivi[] }) {
   const ryhmat = new Map<string, KiinteaRivi[]>();
-  for (const r of rivit) ryhmat.set(litteranNimi(r.rakenneosa.littera), [...(ryhmat.get(litteranNimi(r.rakenneosa.littera)) ?? []), r]);
+  for (const r of rivit) ryhmat.set(litteranNimi(r.littera), [...(ryhmat.get(litteranNimi(r.littera)) ?? []), r]);
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="text-left text-xs uppercase text-ink-muted font-mono border-b border-line">
-          <th className="p-3">Rakenneosa</th>
+          <th className="p-3">Rivi</th>
           <th className="p-3">Kustannuslaji</th>
           <th className="p-3 text-right">Määrä</th>
           <th className="p-3 text-right">Yks. hinta</th>
@@ -401,18 +517,22 @@ export function KiinteatRivitTaulukko({ rivit }: { rivit: KiinteaRivi[] }) {
               <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold">{euro(Math.round(rr.reduce((s, r) => s + r.summaSentit, 0)))}</td>
             </tr>
             {rr.map((r) => (
-              <tr key={r.rakenneosa.id} className="border-b border-line">
+              <tr key={r.avain} className="border-b border-line">
                 <td className="p-3">
-                  <Link href={`/tuotehallinta/rakenneosat/${r.rakenneosa.id}`} className="font-mono hover:underline">
-                    {r.rakenneosa.code}
-                  </Link>{" "}
-                  <span className="text-ink-2">{r.rakenneosa.name}</span>
+                  {r.rakenneosaId ? (
+                    <Link href={`/tuotehallinta/rakenneosat/${r.rakenneosaId}`} className="font-mono hover:underline mr-1">
+                      {r.koodi}
+                    </Link>
+                  ) : (
+                    <span className="badge muted mr-2">vapaa rivi</span>
+                  )}
+                  <span className={r.rakenneosaId ? "text-ink-2" : ""}>{r.nimi}</span>
                 </td>
                 <td className="p-3 text-ink-2">{KUSTANNUSLAJIT[r.laji]}</td>
                 <td className="p-3 text-right font-mono whitespace-nowrap">
-                  {maara(r.maara)} {r.rakenneosa.unit}
+                  {maara(r.maara)} {r.yksikko}
                 </td>
-                <td className="p-3 text-right font-mono">{euro(Math.round(r.rakenneosa.unitPriceCents ?? 0))}</td>
+                <td className="p-3 text-right font-mono">{r.maara ? euro(Math.round(r.summaSentit / r.maara)) : "–"}</td>
                 <td className="p-3 text-right font-mono">{euro(Math.round(r.summaSentit))}</td>
               </tr>
             ))}

@@ -27,7 +27,7 @@ const PUU = n(
     "Asiakkuuksien\nhallinta",
     { suunta: "vaaka" },
     n("Tarjoukset", {}, n("Tarjous 1", { uusi: true }, n("Rakennukset ja\nmääräluettelo", { uusi: true }), n("Omakustannus\nja kate", { uusi: true }))),
-    n("Tarjouslaskenta", { uusi: true }, n("Laskentarivit\nlitteroittain", { uusi: true }), n("Tallennus\nmääräluetteloon", { uusi: true }))
+    n("Tarjouslaskenta", { uusi: true }, n("Laskuri", { uusi: true }), n("Manuaalinen\nlaskenta", { uusi: true }), n("Laskentapohjat", { uusi: true }))
   ),
   n(
     "Projektit",

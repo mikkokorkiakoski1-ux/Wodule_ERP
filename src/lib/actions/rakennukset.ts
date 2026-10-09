@@ -102,11 +102,20 @@ export async function kopioiRakennus(formData: FormData) {
       buildingType: r.buildingType,
       grossAreaM2: r.grossAreaM2,
       plannedDelivery: r.plannedDelivery,
+      laskentaSyote: r.laskentaSyote ?? undefined,
+      katePct: r.katePct,
       seq: (max._max.seq ?? 0) + 1,
       // BIM-tunnisteet eivät kopioidu: ne yksilöivät mallin olion.
       parts: {
         create: r.parts.map((o) => ({
           structureTypeId: o.structureTypeId,
+          productId: o.productId,
+          description: o.description,
+          unit: o.unit,
+          unitPriceCents: o.unitPriceCents,
+          litteraId: o.litteraId,
+          costType: o.costType,
+          source: o.source === "LASKURI" ? ("LASKURI" as const) : ("KASIN" as const),
           quantity: o.quantity,
           location: o.location,
           notes: o.notes,
@@ -123,25 +132,75 @@ export async function kopioiRakennus(formData: FormData) {
 // Määräluettelo (rakenneosa × määrä)
 // ------------------------------------------------------------
 
-const rakenneosaInput = z.object({
-  id: z.string().optional(),
-  buildingId: z.string().min(1),
-  structureTypeId: z.string().min(1, "Valitse rakenneosa"),
-  quantity: luku("Määrä on pakollinen").pipe(z.number().positive("Määrän pitää olla suurempi kuin 0")),
-  location: valinnainenTeksti,
-  notes: valinnainenTeksti,
-});
+const maarariviInput = z
+  .object({
+    id: z.string().optional(),
+    buildingId: z.string().min(1),
+    // Yhdistetty valinta: "osa:<id>" (rakenneosa), "nimike:<id>" tai tyhjä (vapaa rivi).
+    kohde: z.string().optional(),
+    quantity: luku("Määrä on pakollinen").pipe(z.number().positive("Määrän pitää olla suurempi kuin 0")),
+    description: valinnainenTeksti,
+    unit: valinnainenTeksti,
+    unitPriceEuros: valinnainenLuku.pipe(z.number().min(0, "Yksikköhinta ei voi olla negatiivinen").nullable()),
+    litteraId: valinnainenTeksti,
+    costType: z.enum(["MATERIAALI", "TEHDASTYO", "ALIURAKKA"]).optional().transform((v) => v ?? null),
+    location: valinnainenTeksti,
+    notes: valinnainenTeksti,
+  })
+  .transform(({ kohde, unitPriceEuros, ...d }) => {
+    const [taso, viite] = (kohde ?? "").split(":");
+    return {
+      ...d,
+      structureTypeId: taso === "osa" ? viite : null,
+      productId: taso === "nimike" ? viite : null,
+      unitPriceCents: unitPriceEuros === null ? null : Math.round(unitPriceEuros * 100 * 1e6) / 1e6,
+    };
+  })
+  .refine((d) => d.structureTypeId || d.productId || d.description, "Vapaalle riville anna kuvaus")
+  .refine((d) => d.structureTypeId || d.productId || d.unitPriceCents !== null, "Vapaalle riville anna yksikköhinta");
 
+/**
+ * Tallentaa määräluettelon rivin: rakenneosa, nimike tai vapaa rivi.
+ * Rivin oma hinta, littera ja kustannuslaji korvaavat rakenneosan tiedot.
+ * Laskurin rivi (source LASKURI) muuttuu käsin muokattuna käsin syötetyksi,
+ * jotta laskennan uudelleentallennus ei korvaa sitä.
+ */
 export async function tallennaMaararivi(formData: FormData) {
   const k = kentat(formData);
-  const { id, ...data } = jasenna(rakenneosaInput, k, k.paluu);
+  const { id, ...data } = jasenna(maarariviInput, k, k.paluu);
   if (id) {
-    await prisma.buildingPart.update({ where: { id }, data });
+    await prisma.buildingPart.update({ where: { id }, data: { ...data, source: k.source === "BIM" ? "BIM" : "KASIN" } });
   } else {
-    const max = await prisma.buildingPart.aggregate({ where: { buildingId: data.buildingId }, _max: { seq: true } });
+    const max = await prisma.buildingPart.aggregate({ where: { buildingId: data.buildingId, source: { not: "LASKURI" } }, _max: { seq: true } });
     await prisma.buildingPart.create({ data: { ...data, seq: (max._max.seq ?? 0) + 1 } });
   }
   await paivitaRakennus(data.buildingId);
+  palaa(k.paluu);
+}
+
+/**
+ * Muuttaa rakennuksen laskurin rivit käsin syötetyiksi: laskurin tulos
+ * jatkuu manuaalisena laskentana, eikä laskennan uudelleentallennus enää
+ * korvaa rivejä.
+ */
+export async function muutaLaskurinRivitManuaalisiksi(formData: FormData) {
+  const k = kentat(formData);
+  const buildingId = k.buildingId!;
+  await prisma.buildingPart.updateMany({ where: { buildingId, source: "LASKURI" }, data: { source: "KASIN" } });
+  await paivitaRakennus(buildingId);
+  palaa(k.paluu);
+}
+
+/** Rakennuksen tarjouslaskennan kate %. */
+export async function asetaKate(formData: FormData) {
+  const k = kentat(formData);
+  const { buildingId, katePct } = jasenna(
+    z.object({ buildingId: z.string().min(1), katePct: luku("Kate on pakollinen").pipe(z.number().min(0).max(95, "Kate on enintään 95 %")) }),
+    k,
+    k.paluu
+  );
+  await prisma.building.update({ where: { id: buildingId }, data: { katePct } });
+  await paivitaRakennus(buildingId);
   palaa(k.paluu);
 }
 
@@ -288,17 +347,20 @@ export async function luoHankinnatMateriaalitarpeesta(formData: FormData) {
       }
     }
 
-    const kiinteatOlemassa = await tx.procurementItem.findMany({ where: { procurementPlanId: plan.id, structureTypeId: { not: null } } });
-    const rakenneosittain = new Map(kiinteatOlemassa.map((r) => [r.structureTypeId!, r]));
+    // Kiinteähintaiset rivit: rakenneosat tunnistetaan rakenneosasta, vapaat rivit kuvauksesta ja litterasta.
+    const kiinteatOlemassa = await tx.procurementItem.findMany({ where: { procurementPlanId: plan.id, productId: null } });
+    const tunniste = (rakenneosaId: string | null, kuvaus: string, littera: string | null) =>
+      rakenneosaId ? `osa:${rakenneosaId}` : `vapaa:${littera ?? ""}:${kuvaus.toLowerCase()}`;
+    const kiinteatTunnisteella = new Map(kiinteatOlemassa.map((r) => [tunniste(r.structureTypeId, r.description, r.littera), r]));
     for (const r of kiinteat) {
-      const o = r.rakenneosa;
+      const littera = r.littera?.code ?? null;
       const data = {
         quantity: Math.round(r.maara * 1000) / 1000,
-        unit: o.unit,
+        unit: r.yksikko,
         costCents: Math.round(r.summaSentit),
-        littera: o.littera?.code ?? null,
+        littera,
       };
-      const rivi = rakenneosittain.get(o.id);
+      const rivi = kiinteatTunnisteella.get(tunniste(r.rakenneosaId, r.nimi, littera));
       if (rivi) {
         await tx.procurementItem.update({ where: { id: rivi.id }, data });
       } else {
@@ -306,10 +368,10 @@ export async function luoHankinnatMateriaalitarpeesta(formData: FormData) {
           data: {
             ...data,
             procurementPlanId: plan.id,
-            structureTypeId: o.id,
+            structureTypeId: r.rakenneosaId,
             kind: r.laji === "ALIURAKKA" ? "TYOSUORITE" : "MATERIAALI",
-            description: o.name,
-            notes: `Määräluettelosta: ${o.code}`,
+            description: r.nimi,
+            notes: r.koodi ? `Määräluettelosta: ${r.koodi}` : "Määräluettelon vapaa rivi",
           },
         });
       }

@@ -119,13 +119,20 @@ datalla.
 - Kiinteähintaiset rivit (ostot ja aliurakat) hankintasuunnitelmaan litteroineen ja kustannuksineen.
 - Rakennekaavio päivitetty.
 
+**Tilanne 9.10.2026.** Manuaalinen tarjouslaskenta ja laskentapohjat:
+
+- Tarjouslaskentaan välilehdet Laskuri, Manuaalinen ja Pohjat.
+- Manuaalinen laskenta: rakennuksen laskenta kootaan itse litteroittain. Rivi on kirjaston rakenneosa, nimikkeistön nimike tai vapaa rivi, ja sille voi antaa oman hinnan, litteran ja kustannuslajin. Rivin voi lisätä mihin tahansa litteraan, ja uuden litteran voi luoda samalla sivulla. Kate on rakennuskohtainen.
+- Laskurin rivit voi muuttaa manuaalisiksi, ja käsin muokattu laskurin rivi säilyy laskennan uudelleentallennuksessa.
+- Laskentapohjat: rakennuksen laskenta (rivit, kate, laskurin syöte) tallennetaan nimettynä pohjana ja otetaan toisen rakennuksen pohjaksi (lisää tai korvaa). Pohjat ovat myös tiedonsiirrossa.
+
 Seuraavaksi (tauon jälkeen):
 
 1. Tuo tarjouslaskurin laskentarivit kirjastoon (Rakenneosat-sivun painike) ja
    täydennä omat rakenteet, materiaalit, ostonimikkeet ja hinnaston tuntihinta.
    Seedin ajaminen tyhjentäisi kannan. Tarkista laskurin yksikköhinnat
    kirjastossa (oletuksena alkuperäisen laskurin hinnat).
-2. Kokeile kulku selaimessa: tarjous → rakennus → tarjouslaskenta → kate →
+2. Kokeile kulku selaimessa: tarjous → rakennus → laskuri tai manuaalinen laskenta → pohjaksi → kate →
    Muuta projektiksi → elementit → materiaalitarve → hankintasuunnitelma.
    Korjaa havainnot.
 3. BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista) tai

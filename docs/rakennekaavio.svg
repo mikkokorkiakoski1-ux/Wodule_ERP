@@ -3,12 +3,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2966" height="1500" viewBox="0 0 2966 1500" font-family="DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="16">
 <rect width="100%" height="100%" fill="#ffffff"/>
 <text x="60" y="66" font-size="26" font-weight="bold" fill="#0e4126">Wodule ERP – rakennekaavio</text>
-<text x="60" y="96" font-size="15" fill="#444">Päivitetty 8.10.2026. Projekti on pääobjekti: projekti → rakennus → määräluettelo (rakenneosa × määrä) ja elementit.</text>
+<text x="60" y="96" font-size="15" fill="#444">Päivitetty 9.10.2026. Projekti on pääobjekti: projekti → rakennus → määräluettelo (rakenneosa × määrä) ja elementit.</text>
 <g transform="translate(2526, 48)" font-size="15">
   <rect width="22" height="22" fill="#1a6085"/><text x="32" y="16" fill="#222">Alkuperäinen kaavio</text>
   <rect x="190" width="22" height="22" fill="#ef7a2f"/><text x="222" y="16" fill="#222">Uusi tai muuttunut</text>
 </g>
-<path d="M116,594H140M116,684H140M116,540V684M76,504H100M76,450V504M352,504H376M352,594H376M352,450V594M283,326V352M145,352H421M145,352V378M421,352V378M784,504H808M864,774H888M864,864H888M864,954H888M864,1044H888M864,720V1044M824,684H848M824,630V684M784,594H808M784,1134H808M784,1224H808M784,1314H808M784,1404H808M784,450V1404M913,326V352M657,352H1169M657,352V378M853,352V378M1169,352V378M1296,504H1320M1296,594H1320M1296,450V594M1532,504H1556M1532,594H1556M1532,684H1556M1532,450V684M1601,326V352M1365,352H1837M1365,352V378M1601,352V378M1837,352V378M2160,380H2184M2160,470H2184M2160,326V470M2476,560H2500M2476,650H2500M2476,506V650M2436,470H2460M2436,416V470M2396,380H2420M2396,326V380M2712,380H2736M2712,470H2736M2712,326V470M1532,202V228M283,228H2781M283,228V254M913,228V254M1601,228V254M2033,228V254M2229,228V254M2465,228V254M2781,228V254" stroke="#16506f" stroke-width="3" fill="none"/>
+<path d="M116,594H140M116,684H140M116,540V684M76,504H100M76,450V504M352,504H376M352,594H376M352,684H376M352,450V684M283,326V352M145,352H421M145,352V378M421,352V378M784,504H808M864,774H888M864,864H888M864,954H888M864,1044H888M864,720V1044M824,684H848M824,630V684M784,594H808M784,1134H808M784,1224H808M784,1314H808M784,1404H808M784,450V1404M913,326V352M657,352H1169M657,352V378M853,352V378M1169,352V378M1296,504H1320M1296,594H1320M1296,450V594M1532,504H1556M1532,594H1556M1532,684H1556M1532,450V684M1601,326V352M1365,352H1837M1365,352V378M1601,352V378M1837,352V378M2160,380H2184M2160,470H2184M2160,326V470M2476,560H2500M2476,650H2500M2476,506V650M2436,470H2460M2436,416V470M2396,380H2420M2396,326V380M2712,380H2736M2712,470H2736M2712,326V470M1532,202V228M283,228H2781M283,228V254M913,228V254M1601,228V254M2033,228V254M2229,228V254M2465,228V254M2781,228V254" stroke="#16506f" stroke-width="3" fill="none"/>
 <g fill="#ffffff">
 <rect x="60" y="378" width="170" height="72" fill="#1a6085"/>
 <text dominant-baseline="middle" text-anchor="middle"><tspan x="145" y="414">Tarjoukset</tspan></text>
@@ -21,9 +21,11 @@
 <rect x="336" y="378" width="170" height="72" fill="#ef7a2f"/>
 <text dominant-baseline="middle" text-anchor="middle"><tspan x="421" y="414">Tarjouslaskenta</tspan></text>
 <rect x="376" y="468" width="170" height="72" fill="#ef7a2f"/>
-<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="494.5">Laskentarivit</tspan><tspan x="461" y="513.5">litteroittain</tspan></text>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="504">Laskuri</tspan></text>
 <rect x="376" y="558" width="170" height="72" fill="#ef7a2f"/>
-<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="584.5">Tallennus</tspan><tspan x="461" y="603.5">määräluetteloon</tspan></text>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="584.5">Manuaalinen</tspan><tspan x="461" y="603.5">laskenta</tspan></text>
+<rect x="376" y="648" width="170" height="72" fill="#ef7a2f"/>
+<text dominant-baseline="middle" text-anchor="middle"><tspan x="461" y="684">Laskentapohjat</tspan></text>
 <rect x="198" y="254" width="170" height="72" fill="#1a6085"/>
 <text dominant-baseline="middle" text-anchor="middle"><tspan x="283" y="280.5">Asiakkuuksien</tspan><tspan x="283" y="299.5">hallinta</tspan></text>
 <rect x="572" y="378" width="170" height="72" fill="#1a6085"/>

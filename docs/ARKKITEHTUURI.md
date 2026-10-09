@@ -53,6 +53,13 @@ laskentariviä 29 litteraan. Jokainen rivi on kirjastossa kiinteähintainen rake
 rivit tulevat rakennuksen määräluetteloon (source LASKURI), ja määräluettelo,
 omakustannus, kate ja hankinnat lajitellaan litteroittain.
 
+**Manuaalinen laskenta ja pohjat.** Rakennuksen määräluettelon rivi voi olla myös
+nimike (hinta hinnastosta) tai vapaa rivi (oma kuvaus ja hinta), ja jokaiselle
+riville voi antaa oman hinnan, litteran ja kustannuslajin. Manuaalinen-välilehti
+näyttää kaikki litterat, joten rivin voi lisätä mihin tahansa litteraan (uuden
+litteran voi luoda samalla sivulla). Laskentapohja tallentaa rakennuksen rivit,
+katteen ja laskurin syötteen, ja sen voi ottaa toisen rakennuksen pohjaksi.
+
 Määräluetteloista lasketaan (`src/lib/rakenteet.ts`, testit `rakenteet.test.ts`):
 
 - **materiaalitarve** nimikkeittäin: määrä x menekki x (1 + hukka-%)
@@ -88,7 +95,7 @@ alkuperäisen kaavion (`docs/rakennekaavio-alkuperainen.jpg`) jälkeen.
 | Pääikkuna | `/` | (koosteen laskee useasta mallista) |
 | Asiakkuuksien hallinta | `/asiakkuuksien-hallinta` | `Customer` |
 | ├─ Tarjoukset | `/asiakkuuksien-hallinta/tarjoukset`, `/[id]` (sisältö, kate, Muuta projektiksi) | `Offer`, `Building` (offerId) |
-| └─ Tarjouslaskenta | `/asiakkuuksien-hallinta/tarjouslaskenta` (`?rakennus=<id>` tallentaa rakennukselle) | laskettu (`src/lib/tarjouslaskenta.ts`), tallennus `Building.laskentaSyote` + `BuildingPart` (source LASKURI) |
+| └─ Tarjouslaskenta | `/asiakkuuksien-hallinta/tarjouslaskenta` (laskuri), `/manuaalinen`, `/pohjat` (`?rakennus=<id>`) | laskuri `src/lib/tarjouslaskenta.ts` → `BuildingPart` (source LASKURI); manuaalinen = `BuildingPart` (rakenneosa, nimike tai vapaa rivi), `Building.katePct`; `Laskentapohja`, `LaskentapohjaRivi` |
 | Projektit | `/projektit` | `Project` |
 | ├─ Tuotantoaikataulu projektit | `/projektit/tuotantoaikataulu` | `ProductionScheduleItem` |
 | └─ Projekti 1, Projekti 2, ... | `/projektit/[id]` | `Project` (yksi rivi per projekti) |
@@ -185,6 +192,8 @@ src/
     rakennukset.tsx          # Rakennuslomake, määräluettelo, kustannuserittely, materiaalitarve
     KohdeValinta.tsx         # Projekti/rakennus/elementti-valinta kohdistuksiin
     TarjouslaskuriClient.tsx # Tarjouslaskurin syötteet, tulokset ja erittely litteroittain
+    TarjouslaskennanValilehdet.tsx # Laskuri / Manuaalinen / Pohjat
+    laskentapohjat.tsx       # Pohjan käyttö- ja tallennuslomakkeet, rakennuksen valinta
 prisma/
   schema.prisma
   seed.ts                   # Siemendata, mm. sama 11 riviä kuin Artifact-työkalussa

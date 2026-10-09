@@ -113,6 +113,15 @@ Rahasummat tallennetaan kokonaislukuina sentteinä (esim. `amountCents`). Lomakk
 - **Myyntihinta** = omakustannus / (1 − kate), jossa kate on rakennuksen laskurisyötteen kate (oletus 25 %). Tarjouksen "Aseta tarjoushinnaksi" summaa rakennukset. Jälleenmyyjän (Puumesta) kate ja ALV 25,5 % näkyvät vain laskurissa.
 - **Litterat** (`Littera`, Talo 80) lajittelevat rakenneosakirjaston, määräluettelot ja kiinteähintaiset hankinnat. Lajittelu tehdään koodin mukaan numeerisesti (`litterajarjestys`).
 
+### Manuaalinen tarjouslaskenta ja laskentapohjat
+
+Tarjouslaskennassa on kolme välilehteä (`/asiakkuuksien-hallinta/tarjouslaskenta`, `/manuaalinen`, `/pohjat`, rakennus parametrina `?rakennus=<id>`).
+- **Manuaalinen laskenta on rakennuksen määräluettelo.** `BuildingPart`-rivi on rakenneosa (`structureTypeId`), nimike (`productId`) tai vapaa rivi (kumpikaan ei annettu: `description` ja `unitPriceCents` pakollisia). Rivin `unitPriceCents`, `litteraId` ja `costType` korvaavat rakenneosan tiedot. Laskenta on tiedostossa `src/lib/rakenteet.ts` (`rivinKustannus`, `rivinLittera`, `rivinLaji`, `onKiintea`). Älä oleta, että `part.structureType` on aina olemassa, vaan käytä `rivin*`-apufunktioita.
+- **Lomakkeen rivivalinta** on yhdistetty kenttä `kohde` = `osa:<id>`, `nimike:<id>` tai tyhjä (`tallennaMaararivi`). Käsin muokattu laskurin rivi muuttuu lähteeltään KASIN-riviksi, ja `muutaLaskurinRivitManuaalisiksi` muuttaa kaikki laskurin rivit kerralla.
+- **Kate** on `Building.katePct` (`rakennuksenKate`: oma kate, laskurin syötteen kate tai 25 %). Laskurin tallennus asettaa sen syötteestä.
+- **Laskentapohja** (`Laskentapohja`, `LaskentapohjaRivi`) sisältää rakennuksen rivit samoin kentin, katteen ja laskurin syötteen. `tallennaPohjaksi` kopioi rakennuksen rivit, ja nimi on yksilöllinen (päivitys vaatii valinnan). `kaytaPohjaa` lisää tai korvaa rivit; BIM-rivit säilyvät. Pohjan laskurirakenneosan rivit ilman korvauksia palautuvat LASKURI-riveiksi, jotta laskennan uudelleentallennus ei tuplaa niitä. Rakenneosan tai nimikkeen poisto poistaa sen pohjariveiltä (cascade), mutta rakennusten riveiltä poisto on estetty (restrict).
+- **Hankinnoissa** vapaat kiinteähintaiset rivit yhdistyvät litteran ja nimen mukaan, ja ne tunnistetaan uudelleenajossa kuvauksesta ja litterasta.
+
 ### Kaksi eri "aikataulua": älä sekoita
 
 - **`ProductionScheduleItem`** ("Tuotantoaikataulu projektit") on koko tuotannon Gantt, jonka laskenta kuvataan yllä. Se kuuluu Projektit-osioon, **ei** Tuotannon ohjaukseen. Rivin voi liittää projektiin ja rakennukseen (`projectId`, `buildingId`). Liitos ei vaikuta laskentaan.

@@ -23,6 +23,8 @@ export const RAKENNEOSA_INCLUDE = {
 
 export const MAARARIVI_INCLUDE = {
   structureType: { include: RAKENNEOSA_INCLUDE },
+  product: true,
+  littera: true,
 } satisfies Prisma.BuildingPartInclude;
 
 export const RAKENNUS_INCLUDE = {
@@ -124,6 +126,13 @@ export const RAKENNEOSAN_LAJIT: Record<string, string> = { RAKENNE: "Rakenne", O
 export const MAARAN_LAHTEET: Record<string, string> = { KASIN: "Käsin", BIM: "BIM", LASKURI: "Laskuri" };
 
 export const KUSTANNUSLAJIT: Record<string, string> = { MATERIAALI: "Materiaali / osto", TEHDASTYO: "Tehdastyö", ALIURAKKA: "Aliurakka" };
+
+/** Rakennuksen tarjouslaskennan kate %: oma kate, laskurin syötteen kate tai oletus 25 %. */
+export function rakennuksenKate(r: { katePct: number | null; laskentaSyote: unknown }): number {
+  if (r.katePct !== null) return r.katePct;
+  const s = r.laskentaSyote as { kate?: unknown } | null;
+  return typeof s?.kate === "number" ? s.kate : 25;
+}
 
 /** Litteran näyttönimi, esim. "3500 Elementtituotanto". */
 export function litteranNimi(l: { code: string; name: string } | null | undefined): string {

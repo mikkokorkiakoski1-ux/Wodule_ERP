@@ -2,9 +2,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { taydennaSyote } from "@/lib/tarjouslaskenta";
 import { haeLaskurinHinnat } from "@/lib/tarjouslaskuri-kirjasto";
-import { rakennuksenNimi } from "@/lib/rakennukset";
+import { rakennuksenKate, rakennuksenNimi } from "@/lib/rakennukset";
 import { Ilmoitus, Virhe } from "@/components/projektinhallinta";
 import { TarjouslaskuriClient } from "@/components/TarjouslaskuriClient";
+import { TarjouslaskennanValilehdet } from "@/components/TarjouslaskennanValilehdet";
+import { PohjaLomakkeet } from "@/components/laskentapohjat";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +19,13 @@ export default async function TarjouslaskentaPage({
     searchParams.rakennus
       ? prisma.building.findUnique({
           where: { id: searchParams.rakennus },
-          include: { offer: true, project: true, _count: { select: { parts: { where: { source: "LASKURI" } } } } },
+          include: { offer: { include: { project: true } }, project: true, _count: { select: { parts: { where: { source: "LASKURI" } } } } },
         })
       : null,
     haeLaskurinHinnat(prisma),
     prisma.structureType.count({ where: { laskuriAvain: { not: null } } }),
   ]);
+  const kaikkiaRiveja = rakennus ? await prisma.buildingPart.count({ where: { buildingId: rakennus.id } }) : 0;
   const paluu = rakennus
     ? rakennus.projectId
       ? `/projektit/${rakennus.projectId}/rakennukset/${rakennus.id}`
@@ -56,17 +59,30 @@ export default async function TarjouslaskentaPage({
         </p>
       </div>
 
+      <TarjouslaskennanValilehdet aktiivinen="laskuri" rakennusId={rakennus?.id} />
+
       <Virhe viesti={searchParams.virhe} />
       <Ilmoitus viesti={searchParams.ilmoitus} />
 
       {!rakennus && searchParams.rakennus && <Virhe viesti="Rakennusta ei löytynyt." />}
 
       <TarjouslaskuriClient
-        alkusyote={taydennaSyote(rakennus?.laskentaSyote)}
+        alkusyote={rakennus ? { ...taydennaSyote(rakennus.laskentaSyote), kate: rakennuksenKate(rakennus) } : taydennaSyote(null)}
         hinnat={hinnat}
         rakennus={rakennus ? { id: rakennus.id, nimi: rakennus.code, aiempiaRiveja: rakennus._count.parts } : undefined}
         paluu={paluu}
       />
+
+      {rakennus && (rakennus.projectId || !rakennus.offer?.project) && (
+        <div className="max-w-3xl">
+          <PohjaLomakkeet
+            rakennusId={rakennus.id}
+            rakennusKoodi={rakennus.code}
+            paluu={`/asiakkuuksien-hallinta/tarjouslaskenta?rakennus=${rakennus.id}`}
+            riveja={kaikkiaRiveja}
+          />
+        </div>
+      )}
     </div>
   );
 }

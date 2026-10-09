@@ -15,7 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { kentat, palaa } from "@/lib/lomake";
 import { laske, taydennaSyote } from "@/lib/tarjouslaskenta";
 import { haeLaskurinHinnat, varmistaLaskurinKirjasto } from "@/lib/tarjouslaskuri-kirjasto";
-import { laskeRakennukset } from "@/lib/rakennukset";
+import { laskeRakennukset, rakennuksenKate } from "@/lib/rakennukset";
+import { myyntihinta } from "@/lib/rakenteet";
 
 function paivitaKaikki() {
   revalidatePath("/tuotehallinta", "layout");
@@ -67,7 +68,7 @@ export async function tallennaLaskenta(formData: FormData) {
     });
     return tx.building.update({
       where: { id: buildingId },
-      data: { laskentaSyote: syote as object, grossAreaM2: laskelma.geometria.bruttoala },
+      data: { laskentaSyote: syote as object, katePct: syote.kate, grossAreaM2: laskelma.geometria.bruttoala },
     });
   }, { timeout: 30000 });
 
@@ -82,15 +83,14 @@ export async function tallennaLaskenta(formData: FormData) {
 
 /**
  * Asettaa tarjoushinnaksi rakennusten laskennallisen myyntihinnan:
- * omakustannus / (1 - kate), jossa kate on rakennuksen laskurisyötteen kate
- * (oletus 25 %).
+ * omakustannus / (1 - kate), jossa kate on rakennuksen kate (oletus 25 %).
  */
 export async function asetaTarjoushintaLaskelmasta(formData: FormData) {
   const k = kentat(formData);
   const offerId = k.offerId!;
   const { rakennukset } = await laskeRakennukset({ offerId });
   if (rakennukset.length === 0) palaa(k.paluu, "Tarjouksella ei ole rakennuksia");
-  const sentit = rakennukset.reduce((s, r) => s + r.kustannus.yhteensaSentit / (1 - taydennaSyote(r.rakennus.laskentaSyote).kate / 100), 0);
+  const sentit = rakennukset.reduce((s, r) => s + myyntihinta(r.kustannus.yhteensaSentit, rakennuksenKate(r.rakennus)), 0);
   await prisma.offer.update({ where: { id: offerId }, data: { amountCents: Math.round(sentit) } });
   revalidatePath("/asiakkuuksien-hallinta/tarjoukset", "layout");
   palaa(k.paluu);

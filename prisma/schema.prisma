@@ -359,6 +359,8 @@ model Product {
   priceListItems     PriceListItem[]
   structureMaterials StructureMaterial[]
   procurementItems   ProcurementItem[]
+  buildingParts      BuildingPart[]
+  pohjaRivit         LaskentapohjaRivi[]
 
   @@map("products")
 }
@@ -633,6 +635,7 @@ model StructureType {
   parts            BuildingPart[]
   elements         ProductionElement[]
   procurementItems ProcurementItem[]
+  pohjaRivit       LaskentapohjaRivi[]
 
   @@index([litteraId])
   @@map("structure_types")
@@ -653,9 +656,51 @@ model Littera {
   name      String
   createdAt DateTime @default(now())
 
-  structureTypes StructureType[]
+  structureTypes     StructureType[]
+  buildingParts      BuildingPart[]
+  laskentapohjaRivit LaskentapohjaRivi[]
 
   @@map("litterat")
+}
+
+// Tarjouslaskentapohja: tallennettu laskenta, jonka voi ottaa rakennuksen
+// pohjaksi. Sisältää määräluettelon rivit (rakenneosat, nimikkeet ja
+// vapaat rivit litteroineen), katteen ja tarvittaessa laskurin syötteen.
+model Laskentapohja {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String?
+  katePct       Float?
+  laskentaSyote Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  rivit LaskentapohjaRivi[]
+
+  @@map("laskentapohjat")
+}
+
+model LaskentapohjaRivi {
+  id              String         @id @default(cuid())
+  pohjaId         String
+  pohja           Laskentapohja  @relation(fields: [pohjaId], references: [id], onDelete: Cascade)
+  structureTypeId String?
+  structureType   StructureType? @relation(fields: [structureTypeId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  description     String?
+  unit            String?
+  unitPriceCents  Float?
+  litteraId       String?
+  littera         Littera?       @relation(fields: [litteraId], references: [id], onDelete: SetNull)
+  costType        CostType?
+  quantity        Float
+  location        String?
+  notes           String?
+  seq             Int            @default(0)
+
+  @@index([pohjaId])
+  @@map("laskentapohja_rivit")
 }
 
 // Rakenneosan materiaaliluettelo: nimike × menekki per rakenneosan yksikkö.
@@ -712,6 +757,8 @@ model Building {
   // Tarjouslaskurin syöte (src/lib/tarjouslaskenta.ts Syote), tallennetaan
   // kun laskenta viedään rakennuksen määräluetteloon.
   laskentaSyote   Json?
+  // Tarjouslaskennan kate % (laskuri tai manuaalinen); tyhjä = 25 %.
+  katePct         Float?
   bimGuid         String?
   seq             Int            @default(0)
   notes           String?
@@ -741,12 +788,27 @@ enum QuantitySource {
 // Määräluettelon rivi: rakennuksessa on tätä rakenneosaa tämä määrä. Määrät
 // syötetään käsin tai tuodaan BIM-mallin määräluettelosta (source = BIM,
 // bimGuid = mallin olion GlobalId, jolla uusintatuonti päivittää rivin).
+//
+// Rivi on yksi kolmesta (tarjouslaskennan manuaaliset rivit):
+//  - rakenneosa (structureTypeId): hinta rakenneosalta
+//  - nimike (productId): hinta hinnastosta, näkyy materiaalitarpeessa
+//  - vapaa rivi (kumpikaan ei annettu): kuvaus ja yksikköhinta pakollisia
+// Rivikohtaiset kentät (description, unitPriceCents, litteraId, costType)
+// korvaavat rakenneosan tai nimikkeen tiedot, jos ne annetaan.
 model BuildingPart {
   id              String         @id @default(cuid())
   buildingId      String
   building        Building       @relation(fields: [buildingId], references: [id], onDelete: Cascade)
-  structureTypeId String
-  structureType   StructureType  @relation(fields: [structureTypeId], references: [id])
+  structureTypeId String?
+  structureType   StructureType? @relation(fields: [structureTypeId], references: [id], onDelete: Restrict)
+  productId       String?
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  description     String? // vapaan rivin nimi tai lisäkuvaus
+  unit            String? // vapaan rivin yksikkö (muuten rakenneosan tai nimikkeen)
+  unitPriceCents  Float? // rivin oma yksikköhinta senteissä; korvaa muun hinnan
+  litteraId       String?
+  littera         Littera?       @relation(fields: [litteraId], references: [id], onDelete: SetNull)
+  costType        CostType? // rivin oma kustannuslaji; muuten rakenneosan
   quantity        Float
   location        String? // sijainti, esim. "1. krs" tai "Pääty A"
   source          QuantitySource @default(KASIN)

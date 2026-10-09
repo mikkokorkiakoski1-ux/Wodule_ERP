@@ -1,17 +1,22 @@
 /**
- * Rakenneosien laskenta: rakennuksen määräluettelosta (rakenneosa ×
- * määrä) johdetaan materiaalitarve nimikkeittäin, tehtaan tuntimenekki ja
- * omakustannus.
+ * Määräluettelon laskenta: rakennuksen riveistä johdetaan omakustannus,
+ * materiaalitarve nimikkeittäin, kiinteähintaiset rivit ja tehtaan
+ * tuntimenekki.
  *
- *   materiaalin määrä = määrärivin määrä × menekki per yksikkö × (1 + hukka-% / 100)
- *   tuntimenekki      = määrärivin määrä × työtuntinormi
- *   omakustannus      = Σ materiaalin määrä × yksikköhinta + tuntimenekki × tuntihinta
- *                       + Σ kiinteähintaisten rivien määrä × kiinteä yksikköhinta
+ * Määräluettelon rivi on yksi kolmesta:
+ *  - rakenneosa: hinta rakenneosan kiinteästä yksikköhinnasta tai sen
+ *    materiaaliluettelosta (menekki × (1 + hukka-%) × nimikkeen hinta) ja
+ *    työtunneista (määrä × työtuntinormi × tuntihinta)
+ *  - nimike: määrä × nimikkeen hinnaston hinta
+ *  - vapaa rivi: määrä × rivin oma yksikköhinta
+ * Rivin oma yksikköhinta (unitPriceCents) korvaa aina muun hinnan, ja rivin
+ * oma kustannuslaji ja littera korvaavat rakenneosan tiedot.
  *
- * Kiinteähintainen rakenneosa (unitPriceCents, esim. tarjouslaskurin
- * laskentarivit) hinnoitellaan kokonaisuutena: sen materiaaliluetteloa ei
- * käytetä, eikä se näy materiaalitarpeessa vaan kiinteähintaisissa riveissä
- * (laskeKiinteatRivit). Kustannuslaji erittelee tehdastyön ja aliurakan.
+ * Kiinteähintainen rivi (oma hinta, kiinteähintainen rakenneosa tai vapaa
+ * rivi) hinnoitellaan kokonaisuutena: materiaaliluetteloa ei käytetä, eikä
+ * rivi näy materiaalitarpeessa vaan kiinteähintaisissa riveissä
+ * (laskeKiinteatRivit). Nimikerivit näkyvät aina materiaalitarpeessa.
+ * Kustannuslaji erittelee tehdastyön ja aliurakan.
  *
  * Puhtaita funktioita ilman tietokantaa, jotta ne voi testata
  * (src/lib/rakenteet.test.ts). Tietokantahaut ovat tiedostossa
@@ -56,17 +61,26 @@ export interface Rakenneosa {
   littera?: Littera | null;
 }
 
-const kiintea = (r: Rakenneosa) => r.unitPriceCents !== null && r.unitPriceCents !== undefined;
-
+/** Määräluettelon rivi (BuildingPart tai laskentapohjan rivi). */
 export interface Maararivi {
+  id?: string;
   quantity: number;
-  structureType: Rakenneosa;
+  structureType?: Rakenneosa | null;
+  product?: Nimike | null;
+  /** Vapaan rivin nimi; rakenneosa- ja nimikeriveillä lisäkuvaus. */
+  description?: string | null;
+  /** Vapaan rivin yksikkö. */
+  unit?: string | null;
+  /** Rivin oma yksikköhinta senteissä; korvaa muun hinnan. */
+  unitPriceCents?: number | null;
+  costType?: Kustannuslaji | null;
+  littera?: Littera | null;
 }
 
 export interface Materiaalitarve {
   nimike: Nimike;
   maara: number;
-  /** Rakenneosien koodit, joista tarve syntyy. */
+  /** Rakenneosien koodit (tai "suora rivi"), joista tarve syntyy. */
   rakenteet: string[];
 }
 
@@ -74,7 +88,7 @@ export interface Materiaalitarve {
 export type Hinnat = Map<string, number>;
 
 export interface Kustannus {
-  /** Materiaalit ja ostot (materiaaliluettelot + kiinteähintaiset materiaalirivit). */
+  /** Materiaalit ja ostot (materiaaliluettelot, nimikkeet, kiinteähintaiset materiaalirivit). */
   materiaalitSentit: number;
   /** Tehdastyö (työtunnit × tuntihinta + kiinteähintaiset tehdastyörivit). */
   tyoSentit: number;
@@ -88,6 +102,41 @@ export interface Kustannus {
   tuntihintaPuuttuu: boolean;
 }
 
+const annettu = (v: number | null | undefined): v is number => v !== null && v !== undefined;
+
+// ------------------------------------------------------------
+// Rivin tiedot
+// ------------------------------------------------------------
+
+export function rivinNimi(o: Maararivi): string {
+  return o.structureType?.name ?? o.product?.name ?? o.description ?? "Nimetön rivi";
+}
+
+/** Rakenneosan tai nimikkeen koodi; vapaalla rivillä null. */
+export function rivinKoodi(o: Maararivi): string | null {
+  return o.structureType?.code ?? o.product?.code ?? null;
+}
+
+export function rivinYksikko(o: Maararivi): string {
+  return o.structureType?.unit ?? o.product?.unit ?? o.unit ?? "kpl";
+}
+
+export function rivinLittera(o: Maararivi): Littera | null {
+  return o.littera ?? o.structureType?.littera ?? null;
+}
+
+export function rivinLaji(o: Maararivi): Kustannuslaji {
+  return o.costType ?? o.structureType?.costType ?? "MATERIAALI";
+}
+
+/** Rivi hinnoitellaan kokonaisuutena (oma hinta, kiinteähintainen rakenneosa tai vapaa rivi). */
+export function onKiintea(o: Maararivi): boolean {
+  if (annettu(o.unitPriceCents)) return true;
+  if (o.product) return false;
+  if (o.structureType) return annettu(o.structureType.unitPriceCents);
+  return true;
+}
+
 function materiaalinMaara(osanMaara: number, m: Materiaalirivi): number {
   return osanMaara * m.quantityPerUnit * (1 + m.wastePct / 100);
 }
@@ -98,17 +147,63 @@ export function pyorista(n: number, desimaaleja = 3): number {
   return Math.round(n * k) / k;
 }
 
+interface RivinKustannus {
+  materiaalit: number;
+  tyo: number;
+  aliurakka: number;
+  tunnit: number;
+  puuttuvat: Nimike[];
+}
+
+/** Yhden rivin kustannus senteissä (pyöristämättä). */
+export function rivinKustannus(o: Maararivi, hinnat: Hinnat, tuntihintaSentit: number | null): RivinKustannus {
+  const k: RivinKustannus = { materiaalit: 0, tyo: 0, aliurakka: 0, tunnit: 0, puuttuvat: [] };
+  const kiintea = (summa: number) => {
+    const laji = rivinLaji(o);
+    if (laji === "TEHDASTYO") k.tyo += summa;
+    else if (laji === "ALIURAKKA") k.aliurakka += summa;
+    else k.materiaalit += summa;
+  };
+  if (annettu(o.unitPriceCents)) {
+    kiintea(o.quantity * o.unitPriceCents);
+  } else if (o.product) {
+    const hinta = hinnat.get(o.product.id);
+    if (hinta === undefined) k.puuttuvat.push(o.product);
+    else k.materiaalit += o.quantity * hinta;
+  } else if (o.structureType && annettu(o.structureType.unitPriceCents)) {
+    kiintea(o.quantity * o.structureType.unitPriceCents);
+  } else if (o.structureType) {
+    for (const m of o.structureType.materials) {
+      const hinta = hinnat.get(m.productId);
+      if (hinta === undefined) k.puuttuvat.push(m.product);
+      else k.materiaalit += materiaalinMaara(o.quantity, m) * hinta;
+    }
+    k.tunnit = o.quantity * o.structureType.laborHoursPerUnit;
+    if (tuntihintaSentit !== null) k.tyo += k.tunnit * tuntihintaSentit;
+  }
+  return k;
+}
+
+// ------------------------------------------------------------
+// Koko määräluettelo
+// ------------------------------------------------------------
+
 /** Materiaalitarve nimikkeittäin, järjestettynä nimikekoodin mukaan. */
 export function laskeMateriaalitarve(osat: Maararivi[]): Materiaalitarve[] {
   const tarpeet = new Map<string, Materiaalitarve>();
+  const lisaa = (nimike: Nimike, maara: number, lahde: string) => {
+    const t = tarpeet.get(nimike.id) ?? { nimike, maara: 0, rakenteet: [] };
+    t.maara += maara;
+    if (!t.rakenteet.includes(lahde)) t.rakenteet.push(lahde);
+    tarpeet.set(nimike.id, t);
+  };
   for (const osa of osat) {
-    if (kiintea(osa.structureType)) continue;
-    for (const m of osa.structureType.materials) {
-      const t = tarpeet.get(m.productId) ?? { nimike: m.product, maara: 0, rakenteet: [] };
-      t.maara += materiaalinMaara(osa.quantity, m);
-      if (!t.rakenteet.includes(osa.structureType.code)) t.rakenteet.push(osa.structureType.code);
-      tarpeet.set(m.productId, t);
+    if (osa.product) {
+      lisaa(osa.product, osa.quantity, "suora rivi");
+      continue;
     }
+    if (!osa.structureType || onKiintea(osa)) continue;
+    for (const m of osa.structureType.materials) lisaa(m.product, materiaalinMaara(osa.quantity, m), osa.structureType.code);
   }
   return [...tarpeet.values()]
     .map((t) => ({ ...t, maara: pyorista(t.maara) }))
@@ -116,35 +211,58 @@ export function laskeMateriaalitarve(osat: Maararivi[]): Materiaalitarve[] {
 }
 
 export interface KiinteaRivi {
-  rakenneosa: Rakenneosa;
+  /** Yhdistämisavain: rakenneosan id tai vapaan rivin littera + nimi. */
+  avain: string;
+  /** Rakenneosa, jos rivi on rakenneosa (hankintarivin linkki). */
+  rakenneosaId: string | null;
+  koodi: string | null;
+  nimi: string;
+  yksikko: string;
+  littera: Littera | null;
   maara: number;
   /** Tarkka summa senteissä (pyöristys vasta yhteissummassa). */
   summaSentit: number;
   laji: Kustannuslaji;
 }
 
-/** Kiinteähintaiset rivit rakenneosittain (samat rakenneosat yhdistetään), litteran ja koodin mukaan. */
+/**
+ * Kiinteähintaiset rivit (ei nimikerivejä) yhdistettynä: samat rakenneosat
+ * yhdeksi, vapaat rivit litteran ja nimen mukaan. Järjestys litteran ja
+ * koodin mukaan.
+ */
 export function laskeKiinteatRivit(osat: Maararivi[]): KiinteaRivi[] {
   const rivit = new Map<string, KiinteaRivi>();
   for (const o of osat) {
-    const r = o.structureType;
-    if (!kiintea(r)) continue;
-    const k = rivit.get(r.id) ?? { rakenneosa: r, maara: 0, summaSentit: 0, laji: r.costType ?? "MATERIAALI" };
-    k.maara += o.quantity;
-    k.summaSentit += o.quantity * r.unitPriceCents!;
-    rivit.set(r.id, k);
+    if (o.product || !onKiintea(o)) continue;
+    const littera = rivinLittera(o);
+    const laji = rivinLaji(o);
+    const avain = o.structureType ? `osa:${o.structureType.id}:${laji}` : `vapaa:${littera?.code ?? ""}:${rivinNimi(o)}:${laji}`;
+    const r = rivit.get(avain) ?? {
+      avain,
+      rakenneosaId: o.structureType?.id ?? null,
+      koodi: rivinKoodi(o),
+      nimi: rivinNimi(o),
+      yksikko: rivinYksikko(o),
+      littera,
+      maara: 0,
+      summaSentit: 0,
+      laji,
+    };
+    r.maara += o.quantity;
+    r.summaSentit += o.quantity * (o.unitPriceCents ?? o.structureType?.unitPriceCents ?? 0);
+    rivit.set(avain, r);
   }
   return [...rivit.values()].sort(
     (a, b) =>
-      (a.rakenneosa.littera?.code ?? "~").localeCompare(b.rakenneosa.littera?.code ?? "~", "fi", { numeric: true }) ||
-      a.rakenneosa.code.localeCompare(b.rakenneosa.code, "fi", { numeric: true })
+      (a.littera?.code ?? "~").localeCompare(b.littera?.code ?? "~", "fi", { numeric: true }) ||
+      (a.koodi ?? a.nimi).localeCompare(b.koodi ?? b.nimi, "fi", { numeric: true })
   );
 }
 
-/** Tehtaan työtunnit rakenteiden normeista. */
+/** Tehtaan työtunnit rakenteiden normeista (ei kiinteähintaisilta riveiltä). */
 export function laskeTuntimenekki(osat: Maararivi[]): number {
   return pyorista(
-    osat.reduce((s, o) => s + o.quantity * o.structureType.laborHoursPerUnit, 0),
+    osat.reduce((s, o) => s + (o.structureType && !onKiintea(o) ? o.quantity * o.structureType.laborHoursPerUnit : 0), 0),
     1
   );
 }
@@ -152,20 +270,17 @@ export function laskeTuntimenekki(osat: Maararivi[]): number {
 /** Omakustannus hinnaston hinnoilla ja tuntihinnalla. */
 export function laskeKustannus(osat: Maararivi[], hinnat: Hinnat, tuntihintaSentit: number | null): Kustannus {
   let materiaalit = 0;
+  let tyo = 0;
+  let aliurakka = 0;
   const puuttuvat = new Map<string, Nimike>();
-  for (const t of laskeMateriaalitarve(osat)) {
-    const hinta = hinnat.get(t.nimike.id);
-    if (hinta === undefined) puuttuvat.set(t.nimike.id, t.nimike);
-    else materiaalit += t.maara * hinta;
+  for (const o of osat) {
+    const k = rivinKustannus(o, hinnat, tuntihintaSentit);
+    materiaalit += k.materiaalit;
+    tyo += k.tyo;
+    aliurakka += k.aliurakka;
+    for (const n of k.puuttuvat) puuttuvat.set(n.id, n);
   }
   const tunnit = laskeTuntimenekki(osat);
-  let tyo = tuntihintaSentit === null ? 0 : tunnit * tuntihintaSentit;
-  let aliurakka = 0;
-  for (const k of laskeKiinteatRivit(osat)) {
-    if (k.laji === "TEHDASTYO") tyo += k.summaSentit;
-    else if (k.laji === "ALIURAKKA") aliurakka += k.summaSentit;
-    else materiaalit += k.summaSentit;
-  }
   const materiaalitSentit = Math.round(materiaalit);
   const tyoSentit = Math.round(tyo);
   const aliurakkaSentit = Math.round(aliurakka);
@@ -183,6 +298,11 @@ export function laskeKustannus(osat: Maararivi[], hinnat: Hinnat, tuntihintaSent
 /** Yhden rakenneosan omakustannus yksikköä kohti (Rakenneosat-sivun hinta). */
 export function yksikkokustannus(tyyppi: Rakenneosa, hinnat: Hinnat, tuntihintaSentit: number | null): Kustannus {
   return laskeKustannus([{ quantity: 1, structureType: tyyppi }], hinnat, tuntihintaSentit);
+}
+
+/** Myyntihinta katteella: omakustannus / (1 - kate). */
+export function myyntihinta(omakustannusSentit: number, katePct: number): number {
+  return katePct >= 100 ? 0 : omakustannusSentit / (1 - katePct / 100);
 }
 
 export interface Hinnasto {

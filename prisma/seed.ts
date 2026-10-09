@@ -35,6 +35,7 @@ async function main() {
   await prisma.qaChecklistItem.deleteMany();
   await prisma.qaChecklist.deleteMany();
   await prisma.qaDocument.deleteMany();
+  await prisma.laskentapohja.deleteMany();
   await prisma.productionElement.deleteMany();
   await prisma.buildingPart.deleteMany();
   await prisma.building.deleteMany();
@@ -315,6 +316,31 @@ async function main() {
               .map((r, i) => ({ structureTypeId: laskurinOsat.get(r.avain)!, quantity: r.maara, source: "LASKURI" as const, seq: 1000 + i })),
           },
         },
+      },
+    },
+  });
+
+  console.log("Luodaan esimerkkilaskentapohja...");
+  const littera = async (koodi: string) => (await prisma.littera.findUniqueOrThrow({ where: { code: koodi } })).id;
+  await prisma.laskentapohja.create({
+    data: {
+      name: "Paritalo 120 m² (esimerkki)",
+      description: "Manuaalinen laskenta: rakenneosat, nimike ja vapaa rivi litteroittain.",
+      katePct: 22,
+      rivit: {
+        create: [
+          ...osat(PARITALO).filter((o) => o.structureTypeId !== rakenneosa.get("ILP-35")),
+          { productId: nimike.get("ILP-35")!, quantity: 2, seq: 20 },
+          {
+            description: "Kuljetus ja nosto työmaalle",
+            unit: "erä",
+            quantity: 1,
+            unitPriceCents: 145000,
+            costType: "ALIURAKKA" as const,
+            litteraId: await littera("3801"),
+            seq: 21,
+          },
+        ],
       },
     },
   });

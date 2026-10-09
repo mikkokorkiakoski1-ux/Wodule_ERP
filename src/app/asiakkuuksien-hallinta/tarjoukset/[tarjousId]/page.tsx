@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { convertOfferToProject, updateOffer } from "@/lib/actions/asiakkuudet";
 import { kopioiRakennus, poistaRakennus } from "@/lib/actions/rakennukset";
 import { asetaTarjoushintaLaskelmasta } from "@/lib/actions/tarjouslaskenta";
-import { laskeRakennukset, rakennuksenNimi } from "@/lib/rakennukset";
-import { taydennaSyote } from "@/lib/tarjouslaskenta";
+import { laskeRakennukset, litterajarjestys, rakennuksenKate, rakennuksenNimi } from "@/lib/rakennukset";
+import { myyntihinta as laskeMyyntihinta } from "@/lib/rakenteet";
 import { euro, maara, syoteEuro, syotePvm } from "@/lib/muotoilu";
 import { Ilmoitus, Kentta, Virhe } from "@/components/projektinhallinta";
 import { KustannusErittely, Maaraluettelo, RakennusLomake, Tunnusluku } from "@/components/rakennukset";
@@ -35,16 +35,16 @@ export default async function TarjousPage({
   const polku = `/asiakkuuksien-hallinta/tarjoukset/${offer.id}`;
   // Projektiksi muutetun tarjouksen rakennukset kuuluvat projektille; ne näytetään vain luettavina.
   const lukittu = !!offer.project;
-  const [laskenta, rakenneosat] = await Promise.all([
+  const [laskenta, rakenneosat, nimikkeet, litterat] = await Promise.all([
     laskeRakennukset({ offerId: offer.id }),
     prisma.structureType.findMany({ where: { active: true }, include: { littera: true }, orderBy: [{ kind: "asc" }, { code: "asc" }] }),
+    prisma.product.findMany({ orderBy: { code: "asc" } }),
+    prisma.littera.findMany(),
   ]);
+  litterat.sort((a, b) => litterajarjestys(a, b));
   const { kustannus, hinnoittelu } = laskenta;
   // Laskennallinen myyntihinta: rakennuksen omakustannus / (1 - laskurin kate), oletuskate 25 %.
-  const myyntihinta = laskenta.rakennukset.reduce(
-    (s, r) => s + r.kustannus.yhteensaSentit / (1 - taydennaSyote(r.rakennus.laskentaSyote).kate / 100),
-    0
-  );
+  const myyntihinta = laskenta.rakennukset.reduce((s, r) => s + laskeMyyntihinta(r.kustannus.yhteensaSentit, rakennuksenKate(r.rakennus)), 0);
   const kate =
     offer.amountCents && kustannus.yhteensaSentit
       ? { sentit: offer.amountCents - kustannus.yhteensaSentit, pros: ((offer.amountCents - kustannus.yhteensaSentit) / offer.amountCents) * 100 }
@@ -143,7 +143,7 @@ export default async function TarjousPage({
           <h2 className="text-xl">Rakennukset</h2>
           <p className="text-ink-2 text-sm mt-1 max-w-3xl">
             Tarjouksen sisältö: rakennukset ja niiden määräluettelot litteroittain. Laske määräluettelo rakennuksen
-            tarjouslaskurilla tai lisää rakenneosia käsin. Kun tarjous muutetaan projektiksi, samat rakennukset
+            tarjouslaskurilla, kokoa se manuaalisesti tai ota pohjaksi tallennettu laskentapohja. Kun tarjous muutetaan projektiksi, samat rakennukset
             määräluetteloineen siirtyvät projektille.
             {lukittu && " Tämä tarjous on jo muutettu projektiksi, joten rakennuksia muokataan projektissa."}
           </p>
@@ -160,14 +160,19 @@ export default async function TarjousPage({
               </div>
               <div className="flex items-start gap-4">
                 {!lukittu && (
-                  <Link href={`/asiakkuuksien-hallinta/tarjouslaskenta?rakennus=${rakennus.id}`} className="btn btn-secondary btn-sm">
-                    {rakennus.laskentaSyote ? "Avaa tarjouslaskenta" : "Laske tarjouslaskurilla"}
-                  </Link>
+                  <>
+                    <Link href={`/asiakkuuksien-hallinta/tarjouslaskenta?rakennus=${rakennus.id}`} className="btn btn-secondary btn-sm">
+                      Laskuri
+                    </Link>
+                    <Link href={`/asiakkuuksien-hallinta/tarjouslaskenta/manuaalinen?rakennus=${rakennus.id}`} className="btn btn-ghost btn-sm">
+                      Manuaalinen laskenta
+                    </Link>
+                  </>
                 )}
                 <div className="text-right text-sm">
                   <div className="font-mono font-semibold">{euro(k.yhteensaSentit)}</div>
                   <div className="text-xs text-ink-2">
-                    omakustannus · kate {taydennaSyote(rakennus.laskentaSyote).kate} %
+                    omakustannus · kate {rakennuksenKate(rakennus)} %
                   </div>
                 </div>
               </div>
@@ -175,6 +180,8 @@ export default async function TarjousPage({
             <Maaraluettelo
               rakennus={rakennus}
               rakenneosat={rakenneosat}
+              nimikkeet={nimikkeet}
+              litterat={litterat}
               hinnoittelu={hinnoittelu}
               paluu={polku}
               muokkaa={searchParams.muokkaa}

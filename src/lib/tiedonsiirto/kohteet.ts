@@ -1982,8 +1982,8 @@ const maaraluettelo: Kohde = {
   nimi: "Määräluettelo",
   osio: "Projektit",
   kuvaus:
-    "Rakennusten määräluettelot: rakenneosa (rakenne tai ostonimike) × määrä. Sopii BIM-mallin määräluettelon tuontiin: rakenneosa tunnistetaan koodista tai BIM-tyyppinimestä, ja BIM GUID päivittää uusintatuonnissa saman rivin. Puuttuva rakennus luodaan projektiin.",
-  tunnistus: "Tunniste, sitten rakennus + BIM GUID, sitten rakennus + rakenneosa + sijainti.",
+    "Rakennusten määräluettelot eli tarjouslaskennan rivit: rakenneosa, nimike tai vapaa rivi × määrä, litteroineen. Sopii BIM-mallin määräluettelon tuontiin: rakenneosa tunnistetaan koodista tai BIM-tyyppinimestä, ja BIM GUID päivittää uusintatuonnissa saman rivin. Puuttuva rakennus luodaan projektiin.",
+  tunnistus: "Tunniste, sitten rakennus + BIM GUID, sitten rakennus + rakenneosa/nimike/kuvaus + sijainti.",
   sarakkeet: [
     TUNNISTE,
     PROJEKTI,
@@ -1994,12 +1994,13 @@ const maaraluettelo: Kohde = {
       avain: "rakenneosa",
       otsikko: "Rakenneosa",
       tyyppi: "teksti",
-      pakollinen: true,
       aliakset: ["rakennetyyppi", "structure type", "tyyppi", "type", "type name", "tyyppinimi", "ifc type", "bim tyyppi"],
-      kuvaus: "Rakenneosan koodi tai BIM-tyyppinimi.",
+      kuvaus: "Rakenneosan koodi tai BIM-tyyppinimi. Anna rakenneosa, nimikekoodi tai vapaan rivin kuvaus.",
       esimerkki: "US-1",
     },
-    { avain: "tyypinNimi", otsikko: "Rakenneosan nimi", tyyppi: "teksti", vainVienti: true },
+    { avain: "nimike", otsikko: "Nimikekoodi", tyyppi: "teksti", aliakset: ["nimikekoodi", "tuotekoodi", "product code"], kuvaus: "Nimikerivi: hinta hinnastosta." },
+    { avain: "kuvaus", otsikko: "Kuvaus", tyyppi: "teksti", aliakset: ["description", "selite"], kuvaus: "Vapaan rivin nimi (pakollinen ilman rakenneosaa ja nimikettä), muuten lisäkuvaus." },
+    { avain: "tyypinNimi", otsikko: "Rivin nimi", tyyppi: "teksti", vainVienti: true },
     {
       avain: "maara",
       otsikko: "Määrä",
@@ -2010,7 +2011,10 @@ const maaraluettelo: Kohde = {
       kuvaus: "Rakenneosan yksikössä (m2, jm tai kpl).",
       esimerkki: 84.5,
     },
-    { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", vainVienti: true },
+    { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", aliakset: ["unit"], kuvaus: "Vapaan rivin yksikkö; muuten rakenneosan tai nimikkeen yksikkö." },
+    { avain: "hinta", otsikko: "Oma yksikköhinta (€)", tyyppi: "luku", min: 0, aliakset: ["yksikkohinta", "hinta", "unit price"], kuvaus: "Korvaa rakenneosan tai nimikkeen hinnan. Pakollinen vapaalle riville." },
+    { avain: "littera", otsikko: "Littera", tyyppi: "teksti", aliakset: ["litterakoodi"], kuvaus: "Rivin littera; tyhjä = rakenneosan littera." },
+    { avain: "kustannuslaji", otsikko: "Kustannuslaji", tyyppi: "valinta", valinnat: KUSTANNUSLAJIT, aliakset: ["cost type"] },
     { avain: "sijainti", otsikko: "Sijainti", tyyppi: "teksti", aliakset: ["location", "kerros", "level", "storey", "ifcbuildingstorey"], esimerkki: "1. krs" },
     { avain: "lahde", otsikko: "Lähde", tyyppi: "valinta", valinnat: MAARAN_LAHTEET, aliakset: ["source"], kuvaus: "Oletus: BIM, jos BIM GUID on annettu, muuten Käsin." },
     BIM_GUID,
@@ -2020,7 +2024,12 @@ const maaraluettelo: Kohde = {
   async hae(db) {
     const rivit = await db.buildingPart.findMany({
       where: { building: { projectId: { not: null } } },
-      include: { structureType: true, building: { include: { project: { include: { customer: true } } } } },
+      include: {
+        structureType: { include: { littera: true } },
+        product: true,
+        littera: true,
+        building: { include: { project: { include: { customer: true } } } },
+      },
       orderBy: [{ building: { project: { name: "asc" } } }, { building: { code: "asc" } }, { seq: "asc" }],
     });
     return rivit.map((o) => ({
@@ -2029,10 +2038,15 @@ const maaraluettelo: Kohde = {
       asiakas: o.building.project!.customer.name,
       asiakasYtunnus: o.building.project!.customer.businessId,
       rakennus: o.building.code,
-      rakenneosa: o.structureType.code,
-      tyypinNimi: o.structureType.name,
+      rakenneosa: o.structureType?.code ?? null,
+      nimike: o.product?.code ?? null,
+      kuvaus: o.description,
+      tyypinNimi: o.structureType?.name ?? o.product?.name ?? o.description,
       maara: o.quantity,
-      yksikko: o.structureType.unit,
+      yksikko: o.structureType?.unit ?? o.product?.unit ?? o.unit,
+      hinta: o.unitPriceCents === null ? null : o.unitPriceCents / 100,
+      littera: o.littera?.code ?? o.structureType?.littera?.code ?? null,
+      kustannuslaji: o.costType,
       sijainti: o.location,
       lahde: o.source,
       bimGuid: o.bimGuid,
@@ -2048,22 +2062,44 @@ const maaraluettelo: Kohde = {
       if (tapa === "vain-paivita") throw new RiviVirhe(`Rakennusta "${tunnus}" ei löydy`);
       rakennus = await tx.building.create({ data: { projectId: projekti.id, code: tunnus } });
     }
-    const tyyppi = await etsiRakenneosa(tx, teksti(a, "rakenneosa")!);
+    const osaKoodi = teksti(a, "rakenneosa");
+    const nimikeKoodi = teksti(a, "nimike");
+    const kuvaus = teksti(a, "kuvaus");
+    const hinta = a.hinta as number | undefined;
+    if (osaKoodi && nimikeKoodi) throw new RiviVirhe("Anna joko rakenneosa tai nimikekoodi, ei molempia");
+    if (!osaKoodi && !nimikeKoodi && !kuvaus) throw new RiviVirhe("Anna rakenneosa, nimikekoodi tai vapaan rivin kuvaus");
+    if (!osaKoodi && !nimikeKoodi && hinta === undefined) throw new RiviVirhe("Vapaalle riville anna oma yksikköhinta");
+    const tyyppi = osaKoodi ? await etsiRakenneosa(tx, osaKoodi) : null;
+    const nimike = nimikeKoodi ? await etsiNimike(tx, nimikeKoodi) : null;
+    const litteraKoodi = teksti(a, "littera");
     const guid = teksti(a, "bimGuid");
     const sijainti = teksti(a, "sijainti");
     let olemassa = await idlla(a, (id) => tx.buildingPart.findUnique({ where: { id } }));
     if (!olemassa && guid) olemassa = await tx.buildingPart.findUnique({ where: { buildingId_bimGuid: { buildingId: rakennus.id, bimGuid: guid } } });
     if (!olemassa && !guid) {
       olemassa = await tx.buildingPart.findFirst({
-        where: { buildingId: rakennus.id, structureTypeId: tyyppi.id, bimGuid: null, location: sijainti ? eiKirjainkokoa(sijainti) : null },
+        where: {
+          buildingId: rakennus.id,
+          structureTypeId: tyyppi?.id ?? null,
+          productId: nimike?.id ?? null,
+          ...(tyyppi || nimike ? {} : { description: eiKirjainkokoa(kuvaus!) }),
+          bimGuid: null,
+          location: sijainti ? eiKirjainkokoa(sijainti) : null,
+        },
       });
     }
     const data = {
       buildingId: rakennus.id,
-      structureTypeId: tyyppi.id,
+      structureTypeId: tyyppi?.id ?? null,
+      productId: nimike?.id ?? null,
+      description: kuvaus,
+      unit: teksti(a, "yksikko"),
+      unitPriceCents: hinta === undefined ? undefined : Math.round(hinta * 100 * 1e6) / 1e6,
+      litteraId: litteraKoodi ? (await etsiLittera(tx, litteraKoodi)).id : undefined,
+      costType: a.kustannuslaji as Prisma.BuildingPartCreateInput["costType"],
       quantity: a.maara as number,
       location: sijainti,
-      source: (a.lahde as "KASIN" | "BIM" | undefined) ?? (guid ? "BIM" : undefined),
+      source: (a.lahde as "KASIN" | "BIM" | "LASKURI" | undefined) ?? (guid ? "BIM" : undefined),
       bimGuid: guid,
       notes: teksti(a, "huomiot"),
     };
@@ -2073,7 +2109,102 @@ const maaraluettelo: Kohde = {
       () => tx.buildingPart.create({ data: { ...data, id: teksti(a, "id") } }),
       (o) => tx.buildingPart.update({ where: { id: o.id }, data })
     );
-    return { tulos, tunniste: `${projekti.name} ${tunnus}: ${tyyppi.code} ${a.maara} ${tyyppi.unit}` };
+    return { tulos, tunniste: `${projekti.name} ${tunnus}: ${tyyppi?.code ?? nimike?.code ?? kuvaus} ${a.maara}` };
+  },
+};
+
+const laskentapohjarivit: Kohde = {
+  avain: "laskentapohjarivit",
+  nimi: "Laskentapohjien rivit",
+  osio: "Asiakkuuksien hallinta",
+  kuvaus:
+    "Tarjouslaskentapohjien rivit: rakenneosa, nimike tai vapaa rivi × määrä litteroineen. Puuttuva pohja luodaan nimen perusteella (kate 25 %).",
+  tunnistus: "Tunniste, sitten pohja + rakenneosa/nimike/kuvaus + sijainti.",
+  sarakkeet: [
+    TUNNISTE,
+    { avain: "pohja", otsikko: "Pohja", tyyppi: "teksti", pakollinen: true, aliakset: ["laskentapohja", "template"], esimerkki: "Paritalo 120 m2" },
+    { avain: "rakenneosa", otsikko: "Rakenneosa", tyyppi: "teksti", aliakset: ["rakennetyyppi"], kuvaus: "Rakenneosan koodi tai BIM-tyyppinimi.", esimerkki: "US-1" },
+    { avain: "nimike", otsikko: "Nimikekoodi", tyyppi: "teksti", aliakset: ["nimikekoodi", "tuotekoodi"] },
+    { avain: "kuvaus", otsikko: "Kuvaus", tyyppi: "teksti", aliakset: ["description", "selite"], kuvaus: "Vapaan rivin nimi, muuten lisäkuvaus." },
+    { avain: "maara", otsikko: "Määrä", tyyppi: "luku", pakollinen: true, min: 0, aliakset: ["quantity"], esimerkki: 140 },
+    { avain: "yksikko", otsikko: "Yksikkö", tyyppi: "teksti", aliakset: ["unit"] },
+    { avain: "hinta", otsikko: "Oma yksikköhinta (€)", tyyppi: "luku", min: 0, aliakset: ["yksikkohinta", "hinta"] },
+    { avain: "littera", otsikko: "Littera", tyyppi: "teksti", aliakset: ["litterakoodi"] },
+    { avain: "kustannuslaji", otsikko: "Kustannuslaji", tyyppi: "valinta", valinnat: KUSTANNUSLAJIT, aliakset: ["cost type"] },
+    { avain: "sijainti", otsikko: "Sijainti", tyyppi: "teksti", aliakset: ["location"] },
+    { avain: "huomiot", otsikko: "Huomiot", tyyppi: "teksti", aliakset: ["notes"] },
+    { avain: "jarjestys", otsikko: "Järjestys", tyyppi: "kokonaisluku", aliakset: ["seq"] },
+  ],
+  maara: (db) => db.laskentapohjaRivi.count(),
+  async hae(db) {
+    const rivit = await db.laskentapohjaRivi.findMany({
+      include: { pohja: true, structureType: true, product: true, littera: true },
+      orderBy: [{ pohja: { name: "asc" } }, { seq: "asc" }],
+    });
+    return rivit.map((r) => ({
+      id: r.id,
+      pohja: r.pohja.name,
+      rakenneosa: r.structureType?.code ?? null,
+      nimike: r.product?.code ?? null,
+      kuvaus: r.description,
+      maara: r.quantity,
+      yksikko: r.unit,
+      hinta: r.unitPriceCents === null ? null : r.unitPriceCents / 100,
+      littera: r.littera?.code ?? null,
+      kustannuslaji: r.costType,
+      sijainti: r.location,
+      huomiot: r.notes,
+      jarjestys: r.seq,
+    }));
+  },
+  async tuoRivi(a, tx, tapa) {
+    const nimi = teksti(a, "pohja")!;
+    const pohja =
+      (await tx.laskentapohja.findUnique({ where: { name: nimi } })) ??
+      (tapa === "vain-paivita" ? null : await tx.laskentapohja.create({ data: { name: nimi, katePct: 25 } }));
+    if (!pohja) throw new RiviVirhe(`Pohjaa "${nimi}" ei löydy`);
+    const osaKoodi = teksti(a, "rakenneosa");
+    const nimikeKoodi = teksti(a, "nimike");
+    const kuvaus = teksti(a, "kuvaus");
+    const hinta = a.hinta as number | undefined;
+    if (osaKoodi && nimikeKoodi) throw new RiviVirhe("Anna joko rakenneosa tai nimikekoodi, ei molempia");
+    if (!osaKoodi && !nimikeKoodi && !kuvaus) throw new RiviVirhe("Anna rakenneosa, nimikekoodi tai vapaan rivin kuvaus");
+    if (!osaKoodi && !nimikeKoodi && hinta === undefined) throw new RiviVirhe("Vapaalle riville anna oma yksikköhinta");
+    const tyyppi = osaKoodi ? await etsiRakenneosa(tx, osaKoodi) : null;
+    const nimike = nimikeKoodi ? await etsiNimike(tx, nimikeKoodi) : null;
+    const litteraKoodi = teksti(a, "littera");
+    const sijainti = teksti(a, "sijainti");
+    let olemassa = await idlla(a, (id) => tx.laskentapohjaRivi.findUnique({ where: { id } }));
+    olemassa ??= await tx.laskentapohjaRivi.findFirst({
+      where: {
+        pohjaId: pohja.id,
+        structureTypeId: tyyppi?.id ?? null,
+        productId: nimike?.id ?? null,
+        ...(tyyppi || nimike ? {} : { description: eiKirjainkokoa(kuvaus!) }),
+        location: sijainti ? eiKirjainkokoa(sijainti) : null,
+      },
+    });
+    const data = {
+      pohjaId: pohja.id,
+      structureTypeId: tyyppi?.id ?? null,
+      productId: nimike?.id ?? null,
+      description: kuvaus,
+      unit: teksti(a, "yksikko"),
+      unitPriceCents: hinta === undefined ? undefined : Math.round(hinta * 100 * 1e6) / 1e6,
+      litteraId: litteraKoodi ? (await etsiLittera(tx, litteraKoodi)).id : undefined,
+      costType: a.kustannuslaji as Prisma.LaskentapohjaRiviCreateInput["costType"],
+      quantity: a.maara as number,
+      location: sijainti,
+      notes: teksti(a, "huomiot"),
+      seq: a.jarjestys as number | undefined,
+    };
+    const tulos = await tallenna(
+      tapa,
+      olemassa,
+      () => tx.laskentapohjaRivi.create({ data: { ...data, id: teksti(a, "id") } }),
+      (o) => tx.laskentapohjaRivi.update({ where: { id: o.id }, data })
+    );
+    return { tulos, tunniste: `${nimi}: ${tyyppi?.code ?? nimike?.code ?? kuvaus} ${a.maara}` };
   },
 };
 
@@ -2166,6 +2297,7 @@ export const KOHTEET: Kohde[] = [
   projektit,
   rakennukset,
   maaraluettelo,
+  laskentapohjarivit,
   elementit,
   projektiorganisaatio,
   tilausvahvistukset,
