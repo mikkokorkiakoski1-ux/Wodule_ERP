@@ -123,7 +123,8 @@ Seuraavaksi (tauon jälkeen):
 
 1. Tuo tarjouslaskurin laskentarivit kirjastoon (Rakenneosat-sivun painike) ja
    täydennä omat rakenteet, materiaalit, ostonimikkeet ja hinnaston tuntihinta.
-   Seedin ajaminen tyhjentäisi kannan.
+   Seedin ajaminen tyhjentäisi kannan. Tarkista laskurin yksikköhinnat
+   kirjastossa (oletuksena alkuperäisen laskurin hinnat).
 2. Kokeile kulku selaimessa: tarjous → rakennus → tarjouslaskenta → kate →
    Muuta projektiksi → elementit → materiaalitarve → hankintasuunnitelma.
    Korjaa havainnot.
