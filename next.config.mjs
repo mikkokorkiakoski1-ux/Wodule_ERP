@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Tarjouksen PDF muodostetaan palvelimella; kirjastoa ei paketoida (wasm, fontit).
+    serverComponentsExternalPackages: ["@react-pdf/renderer"],
+  },
   // Projektit siirtyivät Asiakkuuksien hallinnan alta omaksi pääosiokseen.
   // Vanhat linkit (kirjanmerkit, tiedostot) ohjataan uusiin osoitteisiin.
   async redirects() {

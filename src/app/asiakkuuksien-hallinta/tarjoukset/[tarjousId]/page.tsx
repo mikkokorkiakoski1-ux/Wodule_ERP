@@ -62,16 +62,24 @@ export default async function TarjousPage({
           </p>
           <h1 className="text-2xl">{offer.title}</h1>
         </div>
-        {offer.project ? (
-          <Link href={`/projektit/${offer.project.id}/rakennukset`} className="btn btn-secondary shrink-0">
-            Avaa projekti {offer.project.name}
-          </Link>
-        ) : (
-          <form action={convertOfferToProject} className="shrink-0">
-            <input type="hidden" name="offerId" value={offer.id} />
-            <button className="btn btn-primary">Muuta projektiksi</button>
-          </form>
-        )}
+        <div className="flex gap-2 shrink-0">
+          <a href={`/api/tarjoukset/${offer.id}/pdf`} target="_blank" rel="noreferrer" className="btn btn-ghost" title="Tarjous ja rakennusten sisältö litteroittain">
+            Tulosta PDF
+          </a>
+          <a href={`/api/tarjoukset/${offer.id}/pdf?sisalto=0`} target="_blank" rel="noreferrer" className="btn btn-ghost" title="Pelkkä yhteenveto ilman sisältöerittelyä">
+            PDF ilman sisältöä
+          </a>
+          {offer.project ? (
+            <Link href={`/projektit/${offer.project.id}/rakennukset`} className="btn btn-secondary">
+              Avaa projekti {offer.project.name}
+            </Link>
+          ) : (
+            <form action={convertOfferToProject}>
+              <input type="hidden" name="offerId" value={offer.id} />
+              <button className="btn btn-primary">Muuta projektiksi</button>
+            </form>
+          )}
+        </div>
       </div>
 
       <Virhe viesti={searchParams.virhe} />

@@ -85,10 +85,15 @@ export default async function TarjouksetPage() {
                   {o.validUntil ? new Date(o.validUntil).toLocaleDateString("fi-FI") : "–"}
                 </td>
                 <td className="p-3 text-right">
-                  <form action={convertOfferToProject}>
-                    <input type="hidden" name="offerId" value={o.id} />
-                    <button className="btn btn-secondary btn-sm">Muuta projektiksi</button>
-                  </form>
+                  <div className="flex gap-2 justify-end">
+                    <a href={`/api/tarjoukset/${o.id}/pdf`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+                      PDF
+                    </a>
+                    <form action={convertOfferToProject}>
+                      <input type="hidden" name="offerId" value={o.id} />
+                      <button className="btn btn-secondary btn-sm">Muuta projektiksi</button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             ))}

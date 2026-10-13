@@ -97,7 +97,7 @@ alkuperäisen kaavion (`docs/rakennekaavio-alkuperainen.jpg`) jälkeen.
 |---|---|---|
 | Pääikkuna | `/` | (koosteen laskee useasta mallista) |
 | Asiakkuuksien hallinta | `/asiakkuuksien-hallinta` | `Customer` |
-| ├─ Tarjoukset | `/asiakkuuksien-hallinta/tarjoukset`, `/[id]` (sisältö, kate, Muuta projektiksi) | `Offer`, `Building` (offerId) |
+| ├─ Tarjoukset | `/asiakkuuksien-hallinta/tarjoukset`, `/[id]` (sisältö, kate, Muuta projektiksi), PDF `/api/tarjoukset/[id]/pdf` | `Offer`, `Building` (offerId) |
 | └─ Tarjouslaskenta | `/asiakkuuksien-hallinta/tarjouslaskenta` (laskuri), `/manuaalinen`, `/pohjat` (`?rakennus=<id>`) | laskuri `src/lib/tarjouslaskenta.ts` → `BuildingPart` (source LASKURI); manuaalinen = `BuildingPart` (rakenneosa, nimike tai vapaa rivi), `Building.katePct`; `Laskentapohja`, `LaskentapohjaRivi` |
 | Projektit | `/projektit` | `Project` |
 | ├─ Tuotantoaikataulu projektit | `/projektit/tuotantoaikataulu` | `ProductionScheduleItem` |

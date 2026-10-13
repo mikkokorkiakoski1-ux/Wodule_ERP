@@ -130,16 +130,34 @@ datalla.
 laskurin mukaisena, mutta materiaaliluettelo tuottaa materiaalitarpeen ja hankinnat
 nimikkeittäin. Rakenneosan sivu vertaa materiaalien hinnastohintaa kiinteään hintaan.
 
+**Tilanne 13.10.2026.** Tarjouksen PDF: Tarjoukset-listalla ja tarjouksen sivulla
+on painike, joka avaa tarjouksen PDF:nä selaimeen tulostettavaksi
+(`/api/tarjoukset/<id>/pdf`). Sisältö: Wodulen logo, tarjousnumero, tilaaja ja
+tarjoaja, hinta alv 0 % ja verollinen, rakennukset ja rakennuskohtainen sisältö
+litteroittain. "PDF ilman sisältöä" jättää sisältöerittelyn pois. Tarjoajan tiedot
+annetaan `.env`:ssä (`TARJOAJA_NIMI`, `TARJOAJA_YHTEYSTIEDOT`). Asiakkaalle näkyvät
+laskentarivien nimet, joten tarkista kirjastosta esimerkiksi rivit "AP Tervas Airi"
+ja "Varastokulutus".
+
 Seuraavaksi (tauon jälkeen):
 
 1. Tuo tarjouslaskurin laskentarivit kirjastoon (Rakenneosat-sivun painike) ja
    täydennä omat rakenteet, materiaalit, ostonimikkeet ja hinnaston tuntihinta.
    Seedin ajaminen tyhjentäisi kannan. Tarkista laskurin yksikköhinnat
    kirjastossa (oletuksena alkuperäisen laskurin hinnat).
-2. Kokeile kulku selaimessa: tarjous → rakennus → laskuri tai manuaalinen laskenta → pohjaksi → kate →
-   Muuta projektiksi → elementit → materiaalitarve → hankintasuunnitelma.
-   Korjaa havainnot.
-3. BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista) tai
+2. Lisää tärkeimmille laskurin riveille materiaaliluettelot (rakenneosan sivu
+   tai tiedonsiirto: Rakenneosien materiaalit), jotta materiaalitarve ja
+   hankinnat tulevat nimikkeittäin. Tarkista sivun vertailu materiaalien
+   hinnastohinnan ja kiinteän hinnan välillä.
+3. Kokeile kulku selaimessa oikealla kohteella, jonka hinnan tiedät: tarjous →
+   rakennus → laskuri tai manuaalinen laskenta → pohjaksi → kate → Muuta
+   projektiksi → elementit → materiaalitarve → hankintasuunnitelma. Mitään
+   näkymää ei ole vielä käytetty selaimessa (testattu yksikkötesteillä ja
+   HTTP-kokeiluilla). Korjaa havainnot ennen uusia ominaisuuksia.
+4. Ennen oikeaa käyttöä: varmuuskopiot (`pg_dump` ajastettuna) ja
+   käyttöympäristö. Ennen kuin sovellus avataan muille: kirjautuminen ja
+   Next.js 15/16 (14.2:n tunnetut tietoturva-aukot).
+5. BIM: suora IFC-tiedoston luku (määrät IfcElementQuantity-tiedoista) tai
    mallipalvelun rajapinta (Trimble Connect, Dalux), jotta määräluettelon
    vientiä ei tarvita.
 

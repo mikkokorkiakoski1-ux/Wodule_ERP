@@ -123,6 +123,12 @@ Tarjouslaskennassa on kolme välilehteä (`/asiakkuuksien-hallinta/tarjouslasken
 - **Laskentapohja** (`Laskentapohja`, `LaskentapohjaRivi`) sisältää rakennuksen rivit samoin kentin, katteen ja laskurin syötteen. `tallennaPohjaksi` kopioi rakennuksen rivit, ja nimi on yksilöllinen (päivitys vaatii valinnan). `kaytaPohjaa` lisää tai korvaa rivit; BIM-rivit säilyvät. Pohjan laskurirakenneosan rivit ilman korvauksia palautuvat LASKURI-riveiksi, jotta laskennan uudelleentallennus ei tuplaa niitä. Rakenneosan tai nimikkeen poisto poistaa sen pohjariveiltä (cascade), mutta rakennusten riveiltä poisto on estetty (restrict).
 - **Hankinnoissa** vapaat kiinteähintaiset rivit yhdistyvät litteran ja nimen mukaan, ja ne tunnistetaan uudelleenajossa kuvauksesta ja litterasta.
 
+### Tarjouksen PDF
+
+`src/lib/tarjous-pdf.tsx` (`@react-pdf/renderer`, palvelimella; `serverComponentsExternalPackages` tiedostossa `next.config.mjs`) ja reitti `GET /api/tarjoukset/[tarjousId]/pdf` (`?sisalto=0` vain yhteenveto, `?lataa=1` liitteenä). Tarjoaja tulee ympäristömuuttujista `TARJOAJA_NIMI` ja `TARJOAJA_YHTEYSTIEDOT` (rivit `|`-merkillä), ja tarjousnumero johdetaan id:stä (`tarjousnumero`).
+- **PDF on asiakkaalle:** ei kustannuksia, katetta eikä tehdastyörivejä (`TEHDASTYO`). €-yksikköisen rivin "määrä" on hinta, joten se näytetään tekstinä "sisältyy". Nollarivejä ei näytetä.
+- **react-pdf 4.9:n kummallisuudet:** kiinteä `Text` `render`-propilla jää tyhjäksi, joten sivunumero renderöidään kiinteässä `View`:ssä. View ei saa `totalPages`-arvoa, joten sivumäärä lasketaan ensimmäisestä renderöinnistä ja dokumentti renderöidään toiseen kertaan. Sivulta peritty `lineHeight` jättää render-tekstin piirtämättä, joten sisemmällä Textillä on oma `lineHeight: 1`. Helveticasta puuttuu U+202F, joten tuhaterottimet korvataan välilyönneillä. `tsx` ei pysty tuomaan kirjastoa, joten kokeile sitä tavallisella `.mjs`-skriptillä.
+
 ### Kaksi eri "aikataulua": älä sekoita
 
 - **`ProductionScheduleItem`** ("Tuotantoaikataulu projektit") on koko tuotannon Gantt, jonka laskenta kuvataan yllä. Se kuuluu Projektit-osioon, **ei** Tuotannon ohjaukseen. Rivin voi liittää projektiin ja rakennukseen (`projectId`, `buildingId`). Liitos ei vaikuta laskentaan.
