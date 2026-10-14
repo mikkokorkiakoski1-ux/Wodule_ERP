@@ -123,9 +123,21 @@ const materiaaliInput = z.object({
   notes: valinnainenTeksti,
 });
 
-/** Lisää nimikkeen rakenteen materiaaliluetteloon tai päivittää sen menekin. */
+/**
+ * Lisää nimikkeen rakenteen materiaaliluetteloon tai päivittää sen menekin.
+ * Valinta voi olla myös ostonimike (`osto:<rakenneosan id>`): silloin
+ * tallennetaan sen nimike, koska materiaaliluettelo ei sisällä rakenneosia.
+ */
 export async function tallennaRakenneosanMateriaali(formData: FormData) {
   const k = kentat(formData);
+  if (k.productId?.startsWith("osto:")) {
+    const osto = await prisma.structureType.findUnique({
+      where: { id: k.productId.slice("osto:".length) },
+      include: { materials: { take: 1 } },
+    });
+    if (osto?.kind !== "OSTONIMIKE" || !osto.materials[0]) palaa(k.paluu, "Ostonimikkeeltä puuttuu nimike");
+    k.productId = osto!.materials[0].productId;
+  }
   const d = jasenna(materiaaliInput, { wastePct: "0", ...k }, k.paluu);
   const osa = await prisma.structureType.findUniqueOrThrow({ where: { id: d.structureTypeId } });
   if (osa.kind === "OSTONIMIKE") palaa(k.paluu, "Ostonimikkeen nimike vaihdetaan perustiedoista");

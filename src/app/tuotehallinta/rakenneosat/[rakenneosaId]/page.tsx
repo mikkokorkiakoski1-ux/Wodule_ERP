@@ -34,7 +34,7 @@ export default async function RakenneosaPage({
   params: { rakenneosaId: string };
   searchParams: { virhe?: string; muokkaa?: string };
 }) {
-  const [osa, nimikkeet, hinnoittelu, litterat] = await Promise.all([
+  const [osa, nimikkeet, hinnoittelu, litterat, ostonimikkeet] = await Promise.all([
     prisma.structureType.findUnique({
       where: { id: params.rakenneosaId },
       include: {
@@ -49,6 +49,11 @@ export default async function RakenneosaPage({
     prisma.product.findMany({ orderBy: { code: "asc" } }),
     haeHinnoittelu(),
     prisma.littera.findMany({ orderBy: { code: "asc" } }),
+    prisma.structureType.findMany({
+      where: { kind: "OSTONIMIKE", active: true, materials: { some: {} } },
+      include: { materials: { take: 1, include: { product: true } } },
+      orderBy: { code: "asc" },
+    }),
   ]);
   litterat.sort((a, b) => litterajarjestys(a, b));
   if (!osa) notFound();
@@ -68,6 +73,8 @@ export default async function RakenneosaPage({
         ero: materiaalitK.yhteensaSentit ? (osa.unitPriceCents! - materiaalitK.yhteensaSentit) / materiaalitK.yhteensaSentit : 0,
       }
     : null;
+  // Nimike → ostonimike, jotta materiaaliluettelo näyttää, mistä ostonimikkeestä rivi tuli.
+  const ostonimikkeenNimike = new Map(ostonimikkeet.map((o) => [o.materials[0].productId, o]));
   const laskurinRivi = osa.laskuriAvain ? LASKENTARIVIT.find((l) => l.avain === osa.laskuriAvain) : undefined;
 
   const yhteisetKentat = (
@@ -209,10 +216,16 @@ export default async function RakenneosaPage({
                 {osa.materials.map((m) => {
                   const hinta = hinnoittelu.hinnat.get(m.productId);
                   const menekki = m.quantityPerUnit * (1 + m.wastePct / 100);
+                  const osto = ostonimikkeenNimike.get(m.productId);
                   return (
                     <tr key={m.id} className="border-b border-line last:border-0">
                       <td className="py-2 pr-3">
                         <span className="font-mono">{m.product.code}</span> <span className="text-ink-2">{m.product.name}</span>
+                        {osto && (
+                          <Link href={`${KIRJASTO}/${osto.id}`} className="badge info ml-2" title="Nimike on ostonimikkeen nimike">
+                            ostonimike {osto.code}
+                          </Link>
+                        )}
                         {m.notes && <div className="text-xs text-ink-muted">{m.notes}</div>}
                       </td>
                       <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
@@ -256,13 +269,24 @@ export default async function RakenneosaPage({
               <Kentta otsikko={muokattava ? "Muokkaa materiaalia" : "Lisää materiaali"}>
                 <select name="productId" defaultValue={muokattava?.productId ?? ""} required className="field">
                   <option value="" disabled>
-                    Valitse nimike
+                    Valitse ostonimike tai nimike
                   </option>
-                  {nimikkeet.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.code} {n.name} ({n.unit})
-                    </option>
-                  ))}
+                  {ostonimikkeet.length > 0 && (
+                    <optgroup label="Ostonimikkeet">
+                      {ostonimikkeet.map((o) => (
+                        <option key={o.id} value={`osto:${o.id}`}>
+                          {o.code} {o.name} ({o.unit})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Nimikkeet">
+                    {nimikkeet.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.code} {n.name} ({n.unit})
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </Kentta>
               <Kentta otsikko={`Menekki / ${osa.unit}`}>
@@ -276,6 +300,12 @@ export default async function RakenneosaPage({
               </Kentta>
               <button className="btn btn-secondary btn-sm">{muokattava ? "Tallenna" : "Lisää"}</button>
             </form>
+            {ostonimikkeet.length > 0 && (
+              <p className="text-xs text-ink-muted">
+                Ostonimike lisätään sen nimikkeenä: hinta tulee hinnastosta, ja asennustunnit lasketaan tämän rakenteen
+                työtunteihin.
+              </p>
+            )}
             {nimikkeet.length === 0 && (
               <p className="text-xs text-ink-muted">
                 Lisää ensin nimikkeitä{" "}
