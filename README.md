@@ -137,9 +137,21 @@ tarjoaja, hinta alv 0 % ja verollinen, rakennukset ja rakennuskohtainen sisält�
 litteroittain. "PDF ilman sisältöä" jättää sisältöerittelyn pois. Tarjoajan tiedot
 annetaan `.env`:ssä (`TARJOAJA_NIMI`, `TARJOAJA_YHTEYSTIEDOT`). Asiakkaalle näkyvät
 laskentarivien nimet, joten tarkista kirjastosta esimerkiksi rivit "AP Tervas Airi"
-ja "Varastokulutus".
+ja "Varastokulutus". Pushattu (commit `e4f90f0`).
+
+**Tilanne 14.10.2026.** Rakenteen materiaaliluetteloon voi valita ostonimikkeen,
+jolloin sen nimike tallentuu materiaaliksi. BOM pysyy tarkoituksella
+kaksitasoisena (rakennus → rakenneosa → nimike); kokoonpanojen uudelleenkäyttöön
+käytetään laskentapohjia. Rekursiivista rakennetta harkitaan vasta, jos tulee
+vakiomoduuleja (esim. kylpyhuonemoduuli), joiden muutosten pitää päivittyä kaikkiin
+rakennuksiin. Pushattu (commit `45a6a34`). Ostonimikkeen tallennusta materiaaliksi
+ei ole vielä kokeiltu selaimessa.
 
 Seuraavaksi (tauon jälkeen):
+
+0. Aseta `.env`:iin `TARJOAJA_NIMI` ja `TARJOAJA_YHTEYSTIEDOT`, avaa jonkin
+   tarjouksen PDF ja nimeä asiakkaalle sopimattomat laskentarivit kirjastossa.
+   Kokeile ostonimikkeen lisäämistä rakenteen materiaaliksi.
 
 1. Tuo tarjouslaskurin laskentarivit kirjastoon (Rakenneosat-sivun painike) ja
    täydennä omat rakenteet, materiaalit, ostonimikkeet ja hinnaston tuntihinta.
