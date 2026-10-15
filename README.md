@@ -147,6 +147,29 @@ vakiomoduuleja (esim. kylpyhuonemoduuli), joiden muutosten pitää päivittyä k
 rakennuksiin. Pushattu (commit `45a6a34`). Ostonimikkeen tallennusta materiaaliksi
 ei ole vielä kokeiltu selaimessa.
 
+**Tilanne 15.10.2026.** Työtä tehdään kahdella koneella. Koodi kulkee
+GitHubin kautta, mutta jokaisella koneella on oma tietokanta, joten syötetty
+data ei siirry gitin mukana. Datan saa siirrettyä tiedonsiirron
+JSON-varmuuskopiolla (Tiedonsiirto → Vie kaikki → tuo toisella koneella).
+Toisella koneella:
+
+- Haettiin muutokset 6.–14.10., asennettiin riippuvuudet ja ajettiin 5
+  migraatiota (`npx prisma migrate deploy`). 94 testiä menee läpi.
+- Kohta 2 aloitettu: tarjouslaskurin 104 laskentariviä ja 29 litteraa tuotu
+  kirjastoon. Täydentämistä varten tarvitaan:
+  - tehtaan työtunnin hinta (hinnaston tuntihinta on tyhjä)
+  - ajantasainen hintalista laskurin yksikköhinnoille
+  - omat rakenteet, materiaalit ja ostonimikkeet
+  - asiakkaalle sopivat nimet riveille kuten "AP Tervas Airi" ja
+    "Varastokulutus".
+- Testidataa siivottu: jäljellä asiakkaat Puumesta ja testi. Demoprojekti
+  "testi 4321" on entinen Firstcamp iglut, jonka aikataulu ja
+  hankintasuunnitelma on tuotu projektinhallinnan Excelistä.
+
+Kahden koneen työtapa: aloita aina `git pull`, `npm install`,
+`npm run db:generate` ja `npx prisma migrate deploy`. Lopeta committaamalla ja
+pushaamalla.
+
 Seuraavaksi (tauon jälkeen):
 
 0. Aseta `.env`:iin `TARJOAJA_NIMI` ja `TARJOAJA_YHTEYSTIEDOT`, avaa jonkin
